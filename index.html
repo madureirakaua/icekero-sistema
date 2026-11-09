@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ice Kero — Açaí & Sorvetes | Floramar, BH</title>
+  <meta name="description" content="Ice Kero: açaí, sorvetes, milk-shakes e picolés em Belo Horizonte. Monte seu açaí do seu jeito e peça online.">
+  <meta name="theme-color" content="#e8197a">
+  <link rel="icon" href="https://cdn.neemo.com.br/uploads/settings_webdelivery/logo/16595/01logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="header">
+  <div class="container">
+    <a href="#topo" class="brand" aria-label="Ice Kero — início"><span class="ice">ICE</span><span class="kero">KERO</span></a>
+    <nav class="nav">
+      <a href="#monte">Monte seu açaí</a>
+      <a href="#cardapio">Cardápio</a>
+      <a href="#fidelidade">Fidelidade</a>
+      <a href="#visite">Onde estamos</a>
+    </nav>
+    <div class="header-right">
+      <span class="status-pill" id="statusPill">Aberto agora</span>
+      <button class="cart-btn" id="cartBtn" aria-label="Abrir sacola">
+        🛍️ <span class="label">Sacola</span> <span class="cart-count" id="cartCount">0</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="topo">
+  <!-- HERO -->
+  <section class="hero">
+    <div class="container">
+      <div>
+        <span class="eyebrow">🍇 Açaí • Sorvetes • Milk-shakes</span>
+        <h1>O sabor da <em>felicidade</em> em cada colherada!</h1>
+        <p class="lead">Açaí cremoso, taças caprichadas, paletas mexicanas e mais de 20 sabores de picolé. Monte do seu jeito e receba em casa — ou passe aqui no Floramar.</p>
+        <div class="hero-ctas">
+          <a href="#monte" class="btn btn-pink">Montar meu açaí</a>
+          <a href="#cardapio" class="btn btn-ghost">Ver cardápio</a>
+        </div>
+        <div class="hero-meta">
+          <div><strong>20–45 min</strong>tempo de entrega</div>
+          <div><strong>+80</strong>itens no cardápio</div>
+          <div><strong>3,8 mil</strong>seguidores no Insta</div>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true">
+        <div class="blob"></div>
+        <div class="photo p1"><img src="https://cdn.neemo.com.br/uploads/item/photo/2314674/photo1711593344.jpeg.webp" alt=""></div>
+        <div class="photo p2"><img src="https://cdn.neemo.com.br/uploads/item/photo/2314675/photo1711592931.jpeg.webp" alt=""></div>
+        <div class="photo p3"><img src="https://cdn.neemo.com.br/uploads/item/photo/2314724/photo1711588600.jpeg.webp" alt=""></div>
+        <div class="sticker"><span>⭐</span><div>Junte pontos<br><small style="color:var(--muted)">e ganhe R$5 de desconto</small></div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BENEFÍCIOS -->
+  <div class="perks">
+    <div class="container">
+      <div class="perk"><div class="ico">🛵</div><div><strong>Delivery próprio</strong><small>Entrega em 20–45 min</small></div></div>
+      <div class="perk"><div class="ico">🏪</div><div><strong>Retirada na loja</strong><small>Peça online e busque</small></div></div>
+      <div class="perk"><div class="ico">⭐</div><div><strong>Programa de pontos</strong><small>10 pontos = R$5 off</small></div></div>
+      <div class="perk"><div class="ico">💳</div><div><strong>Pix, cartão ou dinheiro</strong><small>Pague como preferir</small></div></div>
+    </div>
+  </div>
+
+  <!-- MONTE SEU AÇAÍ -->
+  <section class="block builder" id="monte">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Monte do seu jeito</span>
+        <h2>Seu açaí, suas regras</h2>
+        <p>Escolha o tamanho, os adicionais e veja seu copo ganhando forma.</p>
+      </div>
+      <div class="builder-grid">
+        <div class="cup-stage">
+          <svg class="cup-svg" viewBox="0 0 220 260" id="cupSvg" aria-hidden="true"></svg>
+          <div class="cup-summary">
+            <h3 id="cupTitle">Açaí Gourmet 500ml</h3>
+            <div class="price" id="cupPrice">R$ 23,90</div>
+            <div class="chosen" id="cupChosen"></div>
+            <button class="btn btn-pink btn-block" id="cupAdd">Adicionar à sacola</button>
+          </div>
+        </div>
+        <div>
+          <div class="step">
+            <h3><span class="n">1</span> Escolha o tamanho</h3>
+            <div class="sizes" id="sizes"></div>
+          </div>
+          <div class="step">
+            <h3><span class="n">2</span> Escolha os adicionais <span class="hint" id="addHint">0 de 4</span></h3>
+            <div class="chips" id="chips"></div>
+          </div>
+          <div class="step">
+            <h3><span class="n">3</span> Algum recado?</h3>
+            <label class="field" style="margin:0"><span class="sr-only">Observação</span>
+              <input id="cupObs" placeholder="Ex.: leite condensado por cima, sem granola…">
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CARDÁPIO -->
+  <section id="cardapio" style="padding-top: 72px;">
+    <div class="container section-head">
+      <span class="eyebrow">Cardápio</span>
+      <h2>Tem pra todo mundo</h2>
+      <p>Toque em um item para personalizar e adicionar à sacola.</p>
+    </div>
+    <div class="menu-tools">
+      <div class="container">
+        <label class="search"><span>🔎</span><input id="search" type="search" placeholder="Buscar no cardápio"></label>
+        <div class="tabs" id="tabs"></div>
+      </div>
+    </div>
+    <div class="container" id="menu"></div>
+  </section>
+
+  <!-- FIDELIDADE -->
+  <section class="loyalty" id="fidelidade">
+    <div class="container">
+      <div class="loyalty-card">
+        <div>
+          <span class="eyebrow" style="background:rgba(255,255,255,.18);color:#fff">Clube Ice Kero</span>
+          <h2>A cada R$20, 1 ponto.<br>Com 10 pontos, R$5 de desconto.</h2>
+          <p>Seus pontos ficam salvos pelo seu telefone e o desconto entra sozinho no próximo pedido. Simples assim.</p>
+        </div>
+        <div class="stamps" id="stamps"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VISITE -->
+  <section class="visit" id="visite">
+    <div class="container">
+      <div class="visit-info">
+        <span class="eyebrow">Onde estamos</span>
+        <h2>Passa aqui no Floramar!</h2>
+        <div class="info-row"><div class="ico">📍</div><div><strong>Endereço</strong><a id="addr" target="_blank" rel="noopener"></a></div></div>
+        <div class="info-row"><div class="ico">🕚</div><div><strong>Horário</strong><span id="hours"></span></div></div>
+        <div class="info-row"><div class="ico">📞</div><div><strong>Telefone</strong><a id="phone"></a></div></div>
+        <div class="socials">
+          <a class="btn btn-pink" id="lnkInsta" target="_blank" rel="noopener">Instagram</a>
+          <a class="btn btn-teal" id="lnkFace" target="_blank" rel="noopener">Facebook</a>
+          <a class="btn btn-ghost" id="lnkIfood" target="_blank" rel="noopener">Também no iFood & 99</a>
+        </div>
+      </div>
+      <div class="map">
+        <iframe title="Mapa da Ice Kero" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+          src="https://maps.google.com/maps?q=Av.%20Jos%C3%A9%20Lopes%20Muradas%2C%20277%2C%20Floramar%2C%20Belo%20Horizonte&z=16&output=embed"></iframe>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div>
+      <a href="#topo" class="brand"><span class="ice">ICE</span><span class="kero">KERO</span></a>
+      <small>Açaí & Sorvetes — Belo Horizonte/MG</small>
+    </div>
+    <div>
+      <strong>Fale com a gente</strong>
+      <small id="footPhone"></small>
+    </div>
+    <div>
+      <strong>Sistema</strong>
+      <small><a href="painel.html">Painel da loja →</a></small>
+    </div>
+  </div>
+  <div class="container footer-bottom" id="footLegal"></div>
+</footer>
+
+<button class="float-cart hidden" id="floatCart"><span id="floatCount">0 itens</span><span>Ver sacola • <span id="floatTotal">R$ 0,00</span></span></button>
+
+<!-- Sacola -->
+<div class="overlay" id="overlay"></div>
+<aside class="drawer" id="drawer" aria-label="Sacola">
+  <div class="drawer-head"><h3 id="drawerTitle">Sua sacola</h3><button class="close" data-close aria-label="Fechar">✕</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+  <div class="drawer-foot" id="drawerFoot"></div>
+</aside>
+
+<!-- Modal de produto -->
+<div class="modal" id="modal" role="dialog" aria-modal="true"></div>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

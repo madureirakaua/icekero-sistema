@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Painel da Loja — Ice Kero</title>
+  <meta name="theme-color" content="#23142a">
+  <link rel="icon" href="https://cdn.neemo.com.br/uploads/settings_webdelivery/logo/16595/01logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { background: #f6f2f7; }
+    .topbar { background: var(--ink); color: #fff; position: sticky; top: 0; z-index: 10; }
+    .topbar .container { display: flex; align-items: center; gap: 18px; height: 68px; }
+    .topbar .tag-sys { font-weight: 800; font-size: 13px; background: rgba(255,255,255,.12); padding: 5px 12px; border-radius: 99px; }
+    .topbar .right { margin-left: auto; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .topbar select, .topbar .btn { font-size: 14px; padding: 9px 14px; }
+    .topbar select { font: inherit; font-weight: 800; border-radius: 99px; border: 0; padding: 9px 14px; }
+    .topbar a.link { color: #fff; font-weight: 700; font-size: 14px; opacity: .8; }
+    .wrap { width: min(1400px, 100% - 32px); margin: 24px auto 60px; }
+    .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .kpi { background: #fff; border-radius: 20px; padding: 18px 20px; border: 1px solid var(--line); }
+    .kpi small { color: var(--muted); font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: .4px; }
+    .kpi strong { display: block; font-family: var(--font-title); font-size: 30px; margin-top: 4px; }
+    .kpi span { font-size: 13px; color: var(--muted); }
+    .board { display: grid; grid-template-columns: repeat(4, minmax(260px, 1fr)); gap: 16px; overflow-x: auto; padding-bottom: 8px; }
+    .col { background: #ece4ee; border-radius: 22px; padding: 14px; min-height: 420px; }
+    .col h3 { font-size: 17px; display: flex; align-items: center; gap: 8px; margin: 4px 6px 14px; }
+    .col h3 .n { margin-left: auto; background: #fff; border-radius: 99px; font-size: 13px; padding: 2px 10px; font-family: var(--font-body); font-weight: 800; }
+    .col[data-s="novo"] h3 { color: var(--pink-dark); }
+    .ocard { background: #fff; border-radius: 18px; padding: 14px 16px; margin-bottom: 12px; box-shadow: 0 2px 0 rgba(0,0,0,.04); border-left: 5px solid var(--line); }
+    .col[data-s="novo"] .ocard { border-left-color: var(--pink); }
+    .col[data-s="preparo"] .ocard { border-left-color: #f4b400; }
+    .col[data-s="rota"] .ocard { border-left-color: var(--teal); }
+    .col[data-s="entregue"] .ocard { border-left-color: #8bc34a; opacity: .8; }
+    .ocard.fresh { animation: flash 1.2s 3; }
+    @keyframes flash { 50% { box-shadow: 0 0 0 4px rgba(232,25,122,.35); } }
+    .ohead { display: flex; justify-content: space-between; align-items: baseline; }
+    .ohead strong { font-family: var(--font-title); font-size: 19px; }
+    .ohead span { font-size: 12px; color: var(--muted); font-weight: 700; }
+    .ocli { font-weight: 800; margin-top: 4px; }
+    .ometa { font-size: 13px; color: var(--muted); }
+    .oitems { margin: 10px 0; padding: 10px 0; border-top: 1px dashed var(--line); border-bottom: 1px dashed var(--line); font-size: 14px; }
+    .oitems div { margin-bottom: 4px; }
+    .oitems small { display: block; color: var(--muted); padding-left: 22px; }
+    .ofoot { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+    .ofoot .total { font-family: var(--font-title); font-weight: 700; font-size: 18px; }
+    .ofoot .btn { padding: 8px 14px; font-size: 13px; }
+    .pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--teal-soft); color: var(--teal-dark); margin-right: 4px; }
+    .pill.pink { background: var(--pink-soft); color: var(--pink-dark); }
+    .col-empty { text-align: center; color: #a597a9; font-weight: 700; font-size: 14px; padding: 30px 10px; }
+    .hint-box { background: #fff; border: 2px dashed var(--line); border-radius: 18px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: var(--muted); }
+    .hint-box b { color: var(--ink); }
+    @media (max-width: 900px) { .kpis { grid-template-columns: 1fr 1fr; } .board { grid-template-columns: repeat(4, 280px); } .topbar .container { height: auto; padding: 12px 0; flex-wrap: wrap; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="container" style="width:min(1400px,100% - 32px)">
+      <a href="index.html" class="brand" style="color:#fff"><span class="ice">ICE</span><span class="kero">KERO</span></a>
+      <span class="tag-sys">Painel da loja</span>
+      <div class="right">
+        <select id="openSel" aria-label="Status da loja">
+          <option value="auto">⏱ Horário automático</option>
+          <option value="true">🟢 Loja aberta</option>
+          <option value="false">🔴 Loja fechada</option>
+        </select>
+        <button class="btn btn-teal" id="demoBtn">+ Pedido de exemplo</button>
+        <button class="btn btn-ghost" id="clearBtn">Limpar</button>
+        <a class="link" href="index.html" target="_blank">Abrir site ↗</a>
+      </div>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div class="hint-box" id="hint">💡 <b>Demonstração:</b> abra o <a href="index.html" target="_blank">site</a> em outra aba, faça um pedido e ele aparece aqui na hora, com aviso sonoro. Mova o pedido pelas etapas e o cliente acompanha o status no site.</div>
+    <div class="kpis">
+      <div class="kpi"><small>Pedidos hoje</small><strong id="kPedidos">0</strong><span id="kAbertos">0 em andamento</span></div>
+      <div class="kpi"><small>Faturamento hoje</small><strong id="kFat">R$ 0,00</strong><span id="kEntrega">—</span></div>
+      <div class="kpi"><small>Ticket médio</small><strong id="kTicket">R$ 0,00</strong><span>por pedido</span></div>
+      <div class="kpi"><small>Mais vendido</small><strong id="kTop" style="font-size:20px;line-height:1.2;margin-top:10px">—</strong><span id="kTopQ"></span></div>
+    </div>
+    <div class="board" id="board"></div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const PAG = { pix: "Pix", cartao: "Cartão", dinheiro: "Dinheiro" };
+  const NEXT = { novo: ["preparo", "Aceitar e preparar"], preparo: ["rota", "Saiu p/ entrega", "Pronto p/ retirada"], rota: ["entregue", "Concluir"] };
+  let known = new Set(Store.getOrders().map((o) => o.id));
+  let fresh = new Set();
+
+  const ago = (t) => {
+    const m = Math.floor((Date.now() - t) / 60000);
+    if (m < 1) return "agora";
+    if (m < 60) return `há ${m} min`;
+    return new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  };
+
+  function beep() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      [0, .18].forEach((d, i) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.value = i ? 1046 : 784; o.type = "sine";
+        g.gain.setValueAtTime(.0001, ctx.currentTime + d);
+        g.gain.exponentialRampToValueAtTime(.3, ctx.currentTime + d + .02);
+        g.gain.exponentialRampToValueAtTime(.0001, ctx.currentTime + d + .25);
+        o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + d); o.stop(ctx.currentTime + d + .3);
+      });
+    } catch {}
+  }
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500); }
+
+  function render() {
+    const orders = Store.getOrders();
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const today = orders.filter((o) => o.createdAt >= start.getTime());
+    const fat = today.reduce((s, o) => s + o.total, 0);
+    $("#kPedidos").textContent = today.length;
+    $("#kAbertos").textContent = `${today.filter((o) => o.status !== "entregue").length} em andamento`;
+    $("#kFat").textContent = brl(fat);
+    const ent = today.filter((o) => o.tipo === "entrega").length;
+    $("#kEntrega").textContent = today.length ? `${ent} entregas • ${today.length - ent} retiradas` : "—";
+    $("#kTicket").textContent = brl(today.length ? fat / today.length : 0);
+    const cnt = {};
+    today.forEach((o) => o.itens.forEach((i) => (cnt[i.nome] = (cnt[i.nome] || 0) + i.qtd)));
+    const top = Object.entries(cnt).sort((a, b) => b[1] - a[1])[0];
+    $("#kTop").textContent = top ? top[0] : "—";
+    $("#kTopQ").textContent = top ? `${top[1]} vendidos hoje` : "";
+
+    $("#board").innerHTML = Store.STATUS.map((s) => {
+      const list = orders.filter((o) => o.status === s.id && (s.id !== "entregue" || o.createdAt >= start.getTime()));
+      return `<div class="col" data-s="${s.id}">
+        <h3>${s.emoji} ${s.id === "rota" ? "Entrega / Retirada" : s.id === "entregue" ? "Concluídos hoje" : s.nome}<span class="n">${list.length}</span></h3>
+        ${list.map(cardHtml).join("") || `<div class="col-empty">Nenhum pedido</div>`}
+      </div>`;
+    }).join("");
+  }
+
+  function cardHtml(o) {
+    const nx = NEXT[o.status];
+    const label = nx ? (o.tipo === "retirada" && nx[2] ? nx[2] : nx[1]) : null;
+    return `<div class="ocard ${fresh.has(o.id) ? "fresh" : ""}">
+      <div class="ohead"><strong>${esc(o.code)}</strong><span>${ago(o.createdAt)}</span></div>
+      <div class="ocli">${esc(o.cliente.nome)} <span class="ometa">• ${esc(o.cliente.tel)}</span></div>
+      <div class="ometa" style="margin-top:4px">
+        <span class="pill ${o.tipo === "entrega" ? "pink" : ""}">${o.tipo === "entrega" ? "🛵 Entrega" : "🏪 Retirada"}</span>
+        <span class="pill">${PAG[o.pagamento]}${o.troco ? " • troco p/ R$" + esc(o.troco) : ""}</span>
+      </div>
+      ${o.endereco ? `<div class="ometa" style="margin-top:6px">📍 ${esc(o.endereco)}</div>` : ""}
+      <div class="oitems">${o.itens.map((i) => `<div><b>${i.qtd}×</b> ${esc(i.nome)}${i.extras?.length ? `<small>+ ${i.extras.map(esc).join(", ")}</small>` : ""}${i.obs ? `<small>“${esc(i.obs)}”</small>` : ""}</div>`).join("")}</div>
+      <div class="ofoot"><span class="total">${brl(o.total)}${o.desc ? ` <span class="pill">⭐ −${brl(o.desc)}</span>` : ""}</span>
+        ${label ? `<button class="btn ${o.status === "novo" ? "btn-pink" : "btn-teal"}" data-adv="${o.id}">${label}</button>` : ""}</div>
+    </div>`;
+  }
+
+  $("#board").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-adv]"); if (!b) return;
+    const o = Store.getOrder(b.dataset.adv);
+    Store.updateOrder(o.id, { status: NEXT[o.status][0] });
+    fresh.delete(o.id);
+    render();
+  });
+
+  function checkNew() {
+    const orders = Store.getOrders();
+    const novos = orders.filter((o) => !known.has(o.id));
+    if (novos.length) {
+      novos.forEach((o) => { known.add(o.id); fresh.add(o.id); });
+      beep();
+      toast(`🔔 Novo pedido ${novos[0].code} de ${novos[0].cliente.nome}!`);
+      document.title = `(${novos.length}) Novo pedido — Ice Kero`;
+      setTimeout(() => (document.title = "Painel da Loja — Ice Kero"), 5000);
+    }
+    render();
+  }
+  window.addEventListener("storage", (e) => { if (e.key === Store.K.orders) checkNew(); });
+  setInterval(render, 30000);
+
+  // status da loja
+  const sel = $("#openSel");
+  const s = Store.getSettings();
+  sel.value = s.aberta === null || s.aberta === undefined ? "auto" : String(s.aberta);
+  sel.addEventListener("change", () => {
+    Store.setSettings({ aberta: sel.value === "auto" ? null : sel.value === "true" });
+    toast(sel.value === "false" ? "Loja fechada — o site não aceita pedidos" : "Status atualizado no site");
+  });
+
+  // pedidos de exemplo
+  const NOMES = ["Ana Paula", "Lucas", "Mariana", "Pedro Henrique", "Júlia", "Rafael", "Camila", "Gustavo"];
+  const BAIRROS = ["Floramar", "Tupi", "Jaqueline", "Heliópolis", "Guarani", "Aarão Reis"];
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  $("#demoBtn").addEventListener("click", () => {
+    const n = 1 + Math.floor(Math.random() * 3);
+    const itens = Array.from({ length: n }, () => {
+      const p = pick(PRODUTOS.filter((p) => p.cat !== "adicionais"));
+      const extras = p.monte ? [...ADICIONAIS_MONTE].sort(() => Math.random() - .5).slice(0, p.monte) : [];
+      return { nome: p.nome, preco: p.preco, qtd: 1 + (Math.random() < .25 ? 1 : 0), extras, obs: "" };
+    });
+    const tipo = Math.random() < .7 ? "entrega" : "retirada";
+    const sub = itens.reduce((s, i) => s + i.preco * i.qtd, 0);
+    const taxa = tipo === "entrega" ? LOJA.taxaEntrega : 0;
+    const pag = pick(["pix", "cartao", "dinheiro"]);
+    Store.addOrder({
+      id: "o" + Date.now(), code: Store.nextCode(), createdAt: Date.now(), status: "novo",
+      cliente: { nome: pick(NOMES), tel: "(31) 9 " + (8000 + Math.floor(Math.random() * 1999)) + "-" + (1000 + Math.floor(Math.random() * 8999)) },
+      tipo, endereco: tipo === "entrega" ? `Rua ${pick(["das Flores", "Itaú", "Ouro Branco", "Pedro II"])}, ${10 + Math.floor(Math.random() * 900)} — ${pick(BAIRROS)}` : null,
+      pagamento: pag, troco: pag === "dinheiro" ? "100" : null, itens, sub, taxa, desc: 0, total: sub + taxa,
+    });
+    checkNew();
+  });
+  $("#clearBtn").addEventListener("click", () => {
+    if (!confirm("Apagar todos os pedidos desta demonstração?")) return;
+    Store.setOrders([]); known = new Set(); fresh = new Set(); render();
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
