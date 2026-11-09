@@ -71,7 +71,7 @@ O SQL completo está em [`supabase/`](supabase/), na ordem `001_schema.sql`, `00
 1. **Confirmação de e-mail.** O Supabase exige que o cliente confirme o e-mail antes de entrar, mas o envio padrão de e-mails dele só funciona para os membros da sua equipe no Supabase e tem limite por hora.
    - Para a demonstração: *Authentication → Sign In / Providers → Email* → desligue **Confirm email**.
    - Para produção: configure um SMTP próprio (*Authentication → Emails → SMTP Settings*, por exemplo Resend ou Brevo) e ligue a confirmação de novo.
-2. **Endereços do site.** Em *Authentication → URL Configuration*, coloque em **Site URL** o endereço publicado (ex.: `https://madureirakaua.github.io/icekero-sistema/`) e adicione em **Redirect URLs** esse endereço e `http://localhost:5173/**`. Sem isso, os links de confirmação e de "esqueci minha senha" não voltam para o site.
+2. **Endereços do site.** Em *Authentication → URL Configuration*, coloque em **Site URL** `https://icekero.netlify.app` e adicione em **Redirect URLs** `https://icekero.netlify.app/**` e `http://localhost:5173/**`. Sem isso, os links de confirmação e de "esqueci minha senha" não voltam para o site.
 3. **Contas da equipe.** Crie a conta pelo próprio site (Entrar → Criar conta) e depois marque-a como equipe no *SQL Editor*. Use `store_id` para prender o funcionário a uma unidade (`'floramar'`, `'tupi'` ou `'santa-efigenia'`), ou `null` para o dono ver todas:
    ```sql
    update public.profiles set is_staff = true, store_id = 'tupi'
@@ -86,7 +86,15 @@ O SQL completo está em [`supabase/`](supabase/), na ordem `001_schema.sql`, `00
 npx serve .
 ```
 
-Também funciona publicado no GitHub Pages. Como os pedidos ficam no banco, dá para pedir pelo celular e ver o pedido chegar no painel aberto no notebook.
+## No ar
+
+- Site: **https://icekero.netlify.app**
+- Meus pedidos: https://icekero.netlify.app/pedidos.html
+- Painel da loja: https://icekero.netlify.app/painel.html
+
+Hospedado no Netlify (projeto `icekero`), ligado a este repositório: cada push na branch `main` publica o site sozinho, em cerca de 1 minuto. As configurações de publicação estão em `netlify.toml`.
+
+Como os pedidos ficam no banco, dá para pedir pelo celular e ver o pedido chegar no painel aberto no notebook.
 
 ## Observações
 
