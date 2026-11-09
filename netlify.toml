@@ -1,0 +1,31 @@
+# Site estático: não há build, o Netlify publica a pasta como está.
+[build]
+  publish = "."
+
+# Arquivos internos do projeto não ficam acessíveis no site
+[[redirects]]
+  from = "/supabase/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/README.md"
+  to = "/index.html"
+  status = 404
+  force = true
+
+# Cabeçalhos de segurança para todas as páginas
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "SAMEORIGIN"
+    Permissions-Policy = "geolocation=(self), camera=(), microphone=()"
+
+# O painel da loja não aparece em buscadores
+[[headers]]
+  for = "/painel.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
