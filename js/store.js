@@ -41,6 +41,19 @@ const Store = (() => {
       this.setOrders(all);
     },
     getOrder: (id) => read(K.orders, []).find((o) => o.id === id),
+    // Recusa (pedido ainda não aceito) ou cancela (já em andamento).
+    // Devolve ao cliente os pontos usados e retira os pontos que o pedido gerou.
+    cancelOrder(id, motivo) {
+      const o = this.getOrder(id);
+      if (!o || o.status === "cancelado" || o.status === "entregue") return null;
+      const tipo = o.status === "novo" ? "recusado" : "cancelado";
+      if (o.cliente?.tel) {
+        const pts = this.getPoints(o.cliente.tel) - (o.pontosGanhos || 0) + (o.pontosUsados || 0);
+        this.setPoints(o.cliente.tel, pts);
+      }
+      this.updateOrder(id, { status: "cancelado", cancelTipo: tipo, cancelMotivo: motivo, statusAnterior: o.status, canceladoEm: Date.now() });
+      return tipo;
+    },
     lastOrderId: () => read(K.last, null),
     nextCode() {
       const n = this.getOrders().length + 1;

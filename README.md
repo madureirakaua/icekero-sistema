@@ -18,6 +18,8 @@ Proposta de site e sistema de pedidos próprio para a **Ice Kero Açaí & Sorvet
 - Acesso protegido por senha, com sessão de 12h e botão "Sair"
 - Pedidos chegam ao vivo, com aviso sonoro
 - Quadro Kanban: Recebido → Em preparo → Entrega/Retirada → Concluído
+- Fila por ordem de chegada: o pedido mais antigo fica no topo de cada coluna
+- **Recusar** (pedido novo) ou **cancelar** (em andamento), sempre com motivo. O cliente é avisado na hora, os pontos usados voltam para ele e o pedido sai do faturamento
 - Indicadores do dia: pedidos, faturamento, ticket médio e item mais vendido
 - Botão para abrir ou fechar a loja manualmente
 

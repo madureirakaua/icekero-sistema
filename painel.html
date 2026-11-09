@@ -51,9 +51,18 @@
     .ofoot .btn { padding: 8px 14px; font-size: 13px; }
     .pill { display: inline-block; font-size: 11px; font-weight: 800; padding: 2px 8px; border-radius: 99px; background: var(--teal-soft); color: var(--teal-dark); margin-right: 4px; }
     .pill.pink { background: var(--pink-soft); color: var(--pink-dark); }
+    .ocard.is-cancel { border-left-color: #d64545 !important; opacity: .75; }
+    .ocard.is-cancel .total { text-decoration: line-through; color: var(--muted); }
+    .cancel-box { background: #fdecec; color: #b42323; font-weight: 800; font-size: 13px; padding: 8px 10px; border-radius: 10px; margin-bottom: 10px; }
+    .ofoot { flex-wrap: wrap; row-gap: 10px; }
+    .oacts { display: flex; gap: 6px; margin-left: auto; }
+    .ofoot .btn { white-space: nowrap; }
+    .btn-danger { background: #d64545; color: #fff; }
+    .btn-danger:hover { background: #b42323; }
+    .btn-danger-ghost { background: #fff; color: #b42323; border: 2px solid #f3c9c9; }
+    .btn-danger-ghost:hover { background: #fdecec; }
+    .link-cancel { border: 0; background: none; color: #b42323; font-weight: 700; font-size: 12px; padding: 8px 0 0; text-decoration: underline; }
     .col-empty { text-align: center; color: #a597a9; font-weight: 700; font-size: 14px; padding: 30px 10px; }
-    .hint-box { background: #fff; border: 2px dashed var(--line); border-radius: 18px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: var(--muted); }
-    .hint-box b { color: var(--ink); }
     body.locked .topbar, body.locked .wrap { display: none; }
     .gate { display: none; min-height: 100vh; place-items: center; padding: 24px 16px;
       background: radial-gradient(circle at 80% 10%, var(--pink-soft), transparent 50%), radial-gradient(circle at 10% 90%, var(--teal-soft), transparent 50%), #f6f2f7; }
@@ -102,7 +111,6 @@
   </header>
 
   <div class="wrap">
-    <div class="hint-box" id="hint">💡 <b>Demonstração:</b> abra o <a href="index.html" target="_blank">site</a> em outra aba, faça um pedido e ele aparece aqui na hora, com aviso sonoro. Mova o pedido pelas etapas e o cliente acompanha o status no site.</div>
     <div class="kpis">
       <div class="kpi"><small>Pedidos hoje</small><strong id="kPedidos">0</strong><span id="kAbertos">0 em andamento</span></div>
       <div class="kpi"><small>Faturamento hoje</small><strong id="kFat">R$ 0,00</strong><span id="kEntrega">—</span></div>
@@ -113,6 +121,8 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="overlay" id="overlay"></div>
+  <div class="modal" id="cancelModal" role="dialog" aria-modal="true"></div>
 
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
@@ -195,10 +205,12 @@ function startPanel() {
   function render() {
     const orders = Store.getOrders();
     const start = new Date(); start.setHours(0, 0, 0, 0);
-    const today = orders.filter((o) => o.createdAt >= start.getTime());
+    const todayAll = orders.filter((o) => o.createdAt >= start.getTime());
+    const canc = todayAll.filter((o) => o.status === "cancelado").length;
+    const today = todayAll.filter((o) => o.status !== "cancelado"); // cancelados não entram nos números
     const fat = today.reduce((s, o) => s + o.total, 0);
     $("#kPedidos").textContent = today.length;
-    $("#kAbertos").textContent = `${today.filter((o) => o.status !== "entregue").length} em andamento`;
+    $("#kAbertos").textContent = `${today.filter((o) => o.status !== "entregue").length} em andamento${canc ? ` • ${canc} ${canc === 1 ? "cancelado" : "cancelados"}` : ""}`;
     $("#kFat").textContent = brl(fat);
     const ent = today.filter((o) => o.tipo === "entrega").length;
     $("#kEntrega").textContent = today.length ? `${ent} entregas • ${today.length - ent} retiradas` : "—";
@@ -210,9 +222,14 @@ function startPanel() {
     $("#kTopQ").textContent = top ? `${top[1]} vendidos hoje` : "";
 
     $("#board").innerHTML = Store.STATUS.map((s) => {
-      const list = orders.filter((o) => o.status === s.id && (s.id !== "entregue" || o.createdAt >= start.getTime()));
+      // Em andamento: o mais antigo no topo (fila por ordem de chegada).
+      // Finalizados: o que terminou por último aparece primeiro.
+      const list = s.id === "entregue"
+        ? orders.filter((o) => (o.status === "entregue" || o.status === "cancelado") && o.createdAt >= start.getTime())
+            .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt))
+        : orders.filter((o) => o.status === s.id).sort((a, b) => a.createdAt - b.createdAt);
       return `<div class="col" data-s="${s.id}">
-        <h3>${s.emoji} ${s.id === "rota" ? "Entrega / Retirada" : s.id === "entregue" ? "Concluídos hoje" : s.nome}<span class="n">${list.length}</span></h3>
+        <h3>${s.emoji} ${s.id === "rota" ? "Entrega / Retirada" : s.id === "entregue" ? "Finalizados hoje" : s.nome}<span class="n">${list.length}</span></h3>
         ${list.map(cardHtml).join("") || `<div class="col-empty">Nenhum pedido</div>`}
       </div>`;
     }).join("");
@@ -221,7 +238,7 @@ function startPanel() {
   function cardHtml(o) {
     const nx = NEXT[o.status];
     const label = nx ? (o.tipo === "retirada" && nx[2] ? nx[2] : nx[1]) : null;
-    return `<div class="ocard ${fresh.has(o.id) ? "fresh" : ""}">
+    return `<div class="ocard ${fresh.has(o.id) ? "fresh" : ""} ${o.status === "cancelado" ? "is-cancel" : ""}">
       <div class="ohead"><strong>${esc(o.code)}</strong><span>${ago(o.createdAt)}</span></div>
       <div class="ocli">${esc(o.cliente.nome)} <span class="ometa">• ${esc(o.cliente.tel)}</span></div>
       <div class="ometa" style="margin-top:4px">
@@ -230,12 +247,66 @@ function startPanel() {
       </div>
       ${o.endereco ? `<div class="ometa" style="margin-top:6px">📍 ${esc(o.endereco)}</div>` : ""}
       <div class="oitems">${o.itens.map((i) => `<div><b>${i.qtd}×</b> ${esc(i.nome)}${i.extras?.length ? `<small>+ ${i.extras.map(esc).join(", ")}</small>` : ""}${i.obs ? `<small>“${esc(i.obs)}”</small>` : ""}</div>`).join("")}</div>
+      ${o.status === "cancelado" ? `<div class="cancel-box">❌ ${o.cancelTipo === "recusado" ? "Recusado" : "Cancelado"}${o.cancelMotivo ? ` — ${esc(o.cancelMotivo)}` : ""}</div>` : ""}
       <div class="ofoot"><span class="total">${brl(o.total)}${o.desc ? ` <span class="pill">⭐ −${brl(o.desc)}</span>` : ""}</span>
-        ${label ? `<button class="btn ${o.status === "novo" ? "btn-pink" : "btn-teal"}" data-adv="${o.id}">${label}</button>` : ""}</div>
+        <span class="oacts">
+          ${o.status === "novo" ? `<button class="btn btn-danger-ghost" data-cancel="${o.id}">Recusar</button>` : ""}
+          ${label ? `<button class="btn ${o.status === "novo" ? "btn-pink" : "btn-teal"}" data-adv="${o.id}">${label}</button>` : ""}
+        </span></div>
+      ${o.status === "preparo" || o.status === "rota" ? `<button class="link-cancel" data-cancel="${o.id}">Cancelar pedido</button>` : ""}
     </div>`;
   }
 
+  // ---------- Recusar / cancelar ----------
+  const MOTIVOS = {
+    recusar: ["Produto em falta", "Fora da área de entrega", "Loja muito cheia", "Loja fechando", "Endereço incompleto"],
+    cancelar: ["Cliente pediu para cancelar", "Produto acabou", "Problema na entrega", "Cliente não atende", "Pedido duplicado"],
+  };
+  const overlay = $("#overlay"), cmodal = $("#cancelModal");
+  function closeCancel() { overlay.classList.remove("open"); cmodal.classList.remove("open"); }
+  function openCancel(id) {
+    const o = Store.getOrder(id); if (!o) return;
+    const recusar = o.status === "novo";
+    const st = { motivo: "" };
+    cmodal.innerHTML = ""; // não reaproveita o recado de um cancelamento anterior
+    const draw = () => {
+      const outro = $("#cOutro")?.value || "";
+      cmodal.innerHTML = `
+        <div class="modal-body">
+          <h3>${recusar ? "Recusar" : "Cancelar"} pedido ${esc(o.code)}</h3>
+          <p>${esc(o.cliente.nome)} • ${brl(o.total)}. ${recusar ? "O cliente vê na hora que o pedido foi recusado." : "O pedido já estava em andamento. O cliente é avisado na hora."}${o.pontosUsados ? " Os pontos usados voltam para o cliente." : ""}</p>
+          <span class="form-label">Motivo</span>
+          <div class="chips" style="margin-bottom:14px">${MOTIVOS[recusar ? "recusar" : "cancelar"].map((m) =>
+            `<button class="chip ${st.motivo === m ? "active" : ""}" data-motivo="${esc(m)}">${esc(m)}</button>`).join("")}</div>
+          <label class="field">Outro motivo / recado ao cliente <input id="cOutro" maxlength="140" placeholder="Opcional"></label>
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" data-cclose>Voltar</button>
+          <button class="btn btn-danger" id="cConfirm">${recusar ? "Recusar pedido" : "Cancelar pedido"}</button>
+        </div>`;
+      $("#cOutro").value = outro;
+    };
+    draw();
+    cmodal.onclick = (e) => {
+      const m = e.target.closest("[data-motivo]");
+      if (m) { st.motivo = st.motivo === m.dataset.motivo ? "" : m.dataset.motivo; draw(); return; }
+      if (e.target.closest("[data-cclose]")) { closeCancel(); return; }
+      if (e.target.closest("#cConfirm")) {
+        const motivo = [st.motivo, $("#cOutro").value.trim()].filter(Boolean).join(" — ");
+        if (!motivo) { toast("Escolha ou escreva um motivo"); return; }
+        const tipo = Store.cancelOrder(o.id, motivo);
+        closeCancel(); fresh.delete(o.id); render();
+        if (tipo) toast(`Pedido ${o.code} ${tipo}`);
+      }
+    };
+    overlay.classList.add("open"); cmodal.classList.add("open");
+  }
+  overlay.addEventListener("click", closeCancel);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCancel(); });
+
   $("#board").addEventListener("click", (e) => {
+    const c = e.target.closest("[data-cancel]");
+    if (c) { openCancel(c.dataset.cancel); return; }
     const b = e.target.closest("[data-adv]"); if (!b) return;
     const o = Store.getOrder(b.dataset.adv);
     Store.updateOrder(o.id, { status: NEXT[o.status][0] });

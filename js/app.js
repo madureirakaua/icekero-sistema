@@ -383,7 +383,11 @@
     if (c.tipo === "entrega" && (!c.rua || !c.num || !c.bairro)) errs.push("o endereço completo");
     if (errs.length) { toast("Preencha " + errs.join(", ")); return; }
     const t = totals();
+    const pontosUsados = t.desc ? LOJA.fidelidade.pontosParaResgate : 0;
+    const pontosGanhos = Math.floor(t.total / LOJA.fidelidade.reaisPorPonto);
     const order = {
+      pontosUsados,
+      pontosGanhos,
       id: "o" + Date.now(),
       code: Store.nextCode(),
       createdAt: Date.now(),
@@ -398,10 +402,7 @@
     };
     Store.addOrder(order);
     // fidelidade
-    let pts = Store.getPoints(c.tel);
-    if (t.desc) pts -= LOJA.fidelidade.pontosParaResgate;
-    pts += Math.floor(t.total / LOJA.fidelidade.reaisPorPonto);
-    Store.setPoints(c.tel, pts);
+    Store.setPoints(c.tel, Store.getPoints(c.tel) - pontosUsados + pontosGanhos);
     cart = []; saveCart();
     checkout.usarPontos = false;
     trackingId = order.id;
@@ -413,6 +414,20 @@
     const o = Store.getOrder(trackingId);
     if (!o) { view = "cart"; return renderDrawer(); }
     $("#drawerTitle").textContent = "Acompanhe seu pedido";
+    if (o.status === "cancelado") {
+      const rec = o.cancelTipo === "recusado";
+      $("#drawerBody").innerHTML = `
+        <div class="track">
+          <div class="big">😕</div>
+          <h3 style="font-size:24px">Pedido ${rec ? "recusado" : "cancelado"}</h3>
+          <div class="code" style="background:#fdecec;color:#b42323">Pedido ${o.code} • ${brl(o.total)}</div>
+          ${o.cancelMotivo ? `<p style="font-weight:800;margin:0 0 10px">Motivo: ${esc(o.cancelMotivo)}</p>` : ""}
+          <p style="color:var(--muted);font-size:14px;margin:0 0 6px">Nenhuma cobrança será feita${o.pontosUsados ? " e seus pontos de fidelidade foram devolvidos" : ""}.</p>
+          <p style="color:var(--muted);font-size:14px;margin:0">Dúvidas? Ligue para <a href="${LOJA.telefoneLink}">${LOJA.telefone}</a>.</p>
+        </div>`;
+      $("#drawerFoot").innerHTML = `<button class="btn btn-pink btn-block" id="newOrder">Fazer outro pedido</button>`;
+      return;
+    }
     const idx = Store.STATUS.findIndex((s) => s.id === o.status);
     const ret = o.tipo === "retirada";
     $("#drawerBody").innerHTML = `
@@ -455,16 +470,28 @@
   function openCart() {
     if (view !== "track" && Store.lastOrderId() && !cart.length) {
       const last = Store.getOrder(Store.lastOrderId());
-      if (last && last.status !== "entregue") { trackingId = last.id; view = "track"; }
+      if (last && last.status !== "entregue" && last.status !== "cancelado") { trackingId = last.id; view = "track"; }
     }
     renderDrawer(); open(drawer);
   }
   $("#cartBtn").addEventListener("click", openCart);
   $("#floatCart").addEventListener("click", openCart);
 
+  const avisados = new Set();
   // atualizações vindas do painel (outra aba)
   window.addEventListener("storage", (e) => {
-    if (e.key === Store.K.orders && view === "track") renderTrack();
+    if (e.key === Store.K.orders) {
+      // se o último pedido do cliente foi recusado/cancelado, avisa mesmo com a sacola fechada
+      const last = Store.getOrder(Store.lastOrderId());
+      if (last && last.status === "cancelado" && !avisados.has(last.id)) {
+        avisados.add(last.id);
+        trackingId = last.id; view = "track";
+        renderDrawer();
+        if (!drawer.classList.contains("open")) open(drawer);
+        return;
+      }
+      if (view === "track") renderTrack();
+    }
     if (e.key === Store.K.settings) { renderStatus(); if (view === "cart") renderDrawer(); }
   });
 
