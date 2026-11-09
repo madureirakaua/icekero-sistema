@@ -72,7 +72,9 @@
     $("#lnkInsta").href = LOJA.instagram;
     $("#lnkFace").href = LOJA.facebook;
     $("#lnkIfood").href = LOJA.ifood;
-    $("#footLegal").textContent = `© ${new Date().getFullYear()} ${LOJA.razao} • CNPJ ${LOJA.cnpj}`;
+    // link discreto para a equipe: quase invisível, aparece ao passar o mouse
+    $("#footLegal").innerHTML = `<span>© ${new Date().getFullYear()} ${esc(LOJA.razao)} • CNPJ ${esc(LOJA.cnpj)}</span>
+      <a href="painel.html" class="staff-link" rel="nofollow" aria-label="Área da equipe">Equipe</a>`;
     const stamps = $("#stamps");
     stamps.innerHTML = Array.from({ length: 10 }, (_, i) => `<div class="stamp ${i < 7 ? "on" : ""}">${i < 7 ? "🍦" : ""}</div>`).join("") +
       `<div class="stamps-caption">Faltam só 3 pontos para o seu desconto!</div>`;

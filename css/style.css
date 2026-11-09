@@ -285,7 +285,9 @@ section.block { padding: 88px 0; }
 .footer .brand .kero::after { border-color: var(--pink); }
 .footer small { display: block; color: #9c8fa2; margin-top: 8px; }
 .footer a { color: #fff; }
-.footer-bottom { border-top: 1px solid rgba(255,255,255,.1); margin-top: 28px; padding-top: 18px; font-size: 13px; color: #9c8fa2; }
+.footer-bottom { border-top: 1px solid rgba(255,255,255,.1); margin-top: 28px; padding-top: 18px; font-size: 13px; color: #9c8fa2; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.footer .staff-link { color: #9c8fa2; opacity: .18; font-size: 11px; text-decoration: none; transition: opacity .2s; }
+.footer .staff-link:hover, .footer .staff-link:focus-visible { opacity: .9; }
 
 /* ---------- Drawer / Modal ---------- */
 .overlay { position: fixed; inset: 0; background: rgba(35, 20, 42, .5); z-index: 60; opacity: 0; pointer-events: none; transition: opacity .25s; }
