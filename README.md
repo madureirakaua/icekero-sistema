@@ -15,6 +15,7 @@ Proposta de site e sistema de pedidos próprio para a **Ice Kero Açaí & Sorvet
 - Pensado primeiro para o celular
 
 **Painel da loja (`painel.html`)**
+- Acesso protegido por senha, com sessão de 12h e botão "Sair"
 - Pedidos chegam ao vivo, com aviso sonoro
 - Quadro Kanban: Recebido → Em preparo → Entrega/Retirada → Concluído
 - Indicadores do dia: pedidos, faturamento, ticket médio e item mais vendido
@@ -38,6 +39,17 @@ npx serve .
 ```
 
 Abra o site e o `painel.html` em duas abas **do mesmo navegador**. Faça um pedido no site e ele aparece no painel na hora.
+
+## Acesso ao painel
+
+- Senha da demonstração: `icekero2026`
+- Para trocar a senha, gere o SHA-256 da nova senha e substitua `SENHA_HASH` em `painel.html`:
+  ```bash
+  node -e "console.log(require('crypto').createHash('sha256').update('NOVA_SENHA').digest('hex'))"
+  ```
+- O site não tem nenhum link para o painel, e o painel tem `noindex` para não aparecer no Google.
+
+> **Importante:** nesta demonstração, a senha é conferida no navegador. Isso basta para o cliente não entrar no painel por acaso, mas não é segurança de verdade: quem souber programar consegue contornar. Em produção, o login fica no servidor (por exemplo, Supabase Auth, com um usuário para cada funcionário), e regras no banco de dados garantem que só a equipe da loja pode ver e alterar pedidos.
 
 ## Observações da demonstração
 
