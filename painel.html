@@ -81,13 +81,14 @@
 </head>
 <body class="locked">
   <div class="gate">
-    <form class="gate-card" id="gateForm" autocomplete="off">
+    <form class="gate-card" id="gateForm">
       <span class="brand"><span class="ice">ICE</span><span class="kero">KERO</span></span>
       <h1>Área da loja</h1>
       <p>Acesso restrito à equipe da Ice Kero.</p>
-      <label class="field">Senha <input type="password" id="gatePass" autocomplete="current-password" required autofocus></label>
+      <label class="field">E-mail <input type="email" id="gateEmail" autocomplete="username" required></label>
+      <label class="field">Senha <input type="password" id="gatePass" autocomplete="current-password" required></label>
       <div class="gate-err" id="gateErr"></div>
-      <button class="btn btn-pink btn-block" type="submit">Entrar</button>
+      <button class="btn btn-pink btn-block" type="submit" id="gateBtn">Entrar</button>
       <a class="gate-back" href="index.html">← Voltar para o site</a>
     </form>
   </div>
@@ -96,14 +97,14 @@
     <div class="container" style="width:min(1400px,100% - 32px)">
       <a href="index.html" class="brand" style="color:#fff"><span class="ice">ICE</span><span class="kero">KERO</span></a>
       <span class="tag-sys">Painel da loja</span>
+      <span class="tag-sys" id="liveTag" title="Conexão em tempo real">● Ao vivo</span>
       <div class="right">
         <select id="openSel" aria-label="Status da loja">
           <option value="auto">⏱ Horário automático</option>
           <option value="true">🟢 Loja aberta</option>
           <option value="false">🔴 Loja fechada</option>
         </select>
-        <button class="btn btn-teal" id="demoBtn">+ Pedido de exemplo</button>
-        <button class="btn btn-ghost" id="clearBtn">Limpar</button>
+        <span class="link" id="staffName" style="opacity:.7"></span>
         <a class="link" href="index.html" target="_blank">Abrir site ↗</a>
         <a class="link" href="#" id="logoutBtn">Sair</a>
       </div>
@@ -124,69 +125,30 @@
   <div class="overlay" id="overlay"></div>
   <div class="modal" id="cancelModal" role="dialog" aria-modal="true"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
 <script>
-// ---------- Acesso restrito ----------
-// ATENÇÃO: nesta demonstração o bloqueio é feito no navegador. Ele impede que o
-// cliente entre no painel por acaso, mas NÃO é segurança de verdade. Em produção
-// o login deve ser validado no servidor (ex.: Supabase Auth), e só usuários da
-// loja podem ler ou alterar pedidos no banco.
-const SENHA_HASH = "a471d857ca4f114866855fee805444f8c659608fe03485b475814015a8a87cc7"; // SHA-256 da senha (ver README)
-const SESSAO = "ik_painel_sessao";
-const SESSAO_MS = 12 * 60 * 60 * 1000; // 12 horas
-
-async function sha256(txt) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-function sessaoValida() {
-  try { const t = Number(sessionStorage.getItem(SESSAO)); return t && Date.now() - t < SESSAO_MS; } catch { return false; }
-}
-let painelIniciado = false;
-function liberar() {
-  document.body.classList.remove("locked");
-  if (!painelIniciado) { painelIniciado = true; startPanel(); }
-}
-let tentativas = 0, bloqueadoAte = 0;
-document.getElementById("gateForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const err = document.getElementById("gateErr"), input = document.getElementById("gatePass"), card = e.currentTarget;
-  if (Date.now() < bloqueadoAte) { err.textContent = "Muitas tentativas. Aguarde 30 segundos."; return; }
-  if ((await sha256(input.value)) === SENHA_HASH) {
-    try { sessionStorage.setItem(SESSAO, String(Date.now())); } catch {}
-    input.value = ""; err.textContent = ""; tentativas = 0;
-    liberar();
-  } else {
-    tentativas++;
-    if (tentativas >= 5) { bloqueadoAte = Date.now() + 30000; tentativas = 0; }
-    err.textContent = "Senha incorreta.";
-    input.value = ""; input.focus();
-    card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
-  }
-});
-document.getElementById("logoutBtn").addEventListener("click", (e) => {
-  e.preventDefault();
-  try { sessionStorage.removeItem(SESSAO); } catch {}
-  location.reload();
-});
-if (sessaoValida()) liberar();
-
-function startPanel() {
+// Painel da loja. O acesso é validado no servidor: só contas marcadas como
+// equipe (profiles.is_staff) conseguem ver todos os pedidos e alterá-los.
+(() => {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const PAG = { pix: "Pix", cartao: "Cartão", dinheiro: "Dinheiro" };
   const NEXT = { novo: ["preparo", "Aceitar e preparar"], preparo: ["rota", "Saiu p/ entrega", "Pronto p/ retirada"], rota: ["entregue", "Concluir"] };
-  let known = new Set(Store.getOrders().map((o) => o.id));
+  let orders = [];
   let fresh = new Set();
+  let channel = null, settingsCh = null;
+  let started = false;
 
+  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
   const ago = (t) => {
     const m = Math.floor((Date.now() - t) / 60000);
     if (m < 1) return "agora";
     if (m < 60) return `há ${m} min`;
     return new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
   };
-
   function beep() {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -200,17 +162,75 @@ function startPanel() {
       });
     } catch {}
   }
-  function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 2500); }
+
+  // ---------- acesso ----------
+  async function checkAccess() {
+    const user = await Api.user();
+    if (!user) return lock();
+    let prof = null;
+    try { prof = await Api.profile(); } catch {}
+    if (!prof || !prof.is_staff) {
+      await Api.signOut();
+      lock("Esta conta não tem acesso ao painel da loja.");
+      return;
+    }
+    $("#staffName").textContent = prof.nome || user.email;
+    document.body.classList.remove("locked");
+    if (!started) { started = true; start(); }
+  }
+  function lock(msg) {
+    document.body.classList.add("locked");
+    $("#gateErr").textContent = msg || "";
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    if (settingsCh) { sb.removeChannel(settingsCh); settingsCh = null; }
+    started = false; orders = [];
+  }
+  $("#gateForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = $("#gateBtn"); btn.disabled = true; btn.textContent = "Entrando…";
+    $("#gateErr").textContent = "";
+    try {
+      await Api.signIn($("#gateEmail").value.trim(), $("#gatePass").value);
+      $("#gatePass").value = "";
+      await checkAccess();
+    } catch (ex) {
+      $("#gateErr").textContent = errMsg(ex);
+      const card = $("#gateForm"); card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+    } finally { btn.disabled = false; btn.textContent = "Entrar"; }
+  });
+  $("#logoutBtn").addEventListener("click", async (e) => { e.preventDefault(); await Api.signOut(); lock(); });
+
+  // ---------- dados ----------
+  async function start() {
+    try { orders = await Api.boardOrders(); } catch (ex) { toast(errMsg(ex)); }
+    render();
+    channel = Api.watchOrders("painel", null, (ev, o) => {
+      if (!o) return;
+      const i = orders.findIndex((x) => x.id === o.id);
+      if (ev === "INSERT" && i < 0) {
+        orders.push(o); fresh.add(o.id); beep();
+        toast(`🔔 Novo pedido ${o.code} de ${o.cliente.nome}!`);
+        document.title = `🔔 Novo pedido — Ice Kero`;
+        setTimeout(() => (document.title = "Painel da Loja — Ice Kero"), 6000);
+      } else if (i >= 0) orders[i] = o;
+      else orders.push(o);
+      render();
+    });
+    try {
+      const s = await Api.settings();
+      $("#openSel").value = s.aberta === null ? "auto" : String(s.aberta);
+    } catch {}
+    settingsCh = Api.watchSettings((s) => { $("#openSel").value = s.aberta === null ? "auto" : String(s.aberta); });
+  }
 
   function render() {
-    const orders = Store.getOrders();
     const start = new Date(); start.setHours(0, 0, 0, 0);
     const todayAll = orders.filter((o) => o.createdAt >= start.getTime());
     const canc = todayAll.filter((o) => o.status === "cancelado").length;
     const today = todayAll.filter((o) => o.status !== "cancelado"); // cancelados não entram nos números
     const fat = today.reduce((s, o) => s + o.total, 0);
     $("#kPedidos").textContent = today.length;
-    $("#kAbertos").textContent = `${today.filter((o) => o.status !== "entregue").length} em andamento${canc ? ` • ${canc} ${canc === 1 ? "cancelado" : "cancelados"}` : ""}`;
+    $("#kAbertos").textContent = `${orders.filter((o) => ["novo", "preparo", "rota"].includes(o.status)).length} em andamento${canc ? ` • ${canc} ${canc === 1 ? "cancelado" : "cancelados"}` : ""}`;
     $("#kFat").textContent = brl(fat);
     const ent = today.filter((o) => o.tipo === "entrega").length;
     $("#kEntrega").textContent = today.length ? `${ent} entregas • ${today.length - ent} retiradas` : "—";
@@ -257,7 +277,9 @@ function startPanel() {
     </div>`;
   }
 
-  // ---------- Recusar / cancelar ----------
+  function replace(o) { const i = orders.findIndex((x) => x.id === o.id); if (i >= 0) orders[i] = o; }
+
+  // ---------- recusar / cancelar ----------
   const MOTIVOS = {
     recusar: ["Produto em falta", "Fora da área de entrega", "Loja muito cheia", "Loja fechando", "Endereço incompleto"],
     cancelar: ["Cliente pediu para cancelar", "Produto acabou", "Problema na entrega", "Cliente não atende", "Pedido duplicado"],
@@ -265,7 +287,7 @@ function startPanel() {
   const overlay = $("#overlay"), cmodal = $("#cancelModal");
   function closeCancel() { overlay.classList.remove("open"); cmodal.classList.remove("open"); }
   function openCancel(id) {
-    const o = Store.getOrder(id); if (!o) return;
+    const o = orders.find((x) => x.id === id); if (!o) return;
     const recusar = o.status === "novo";
     const st = { motivo: "" };
     cmodal.innerHTML = ""; // não reaproveita o recado de um cancelamento anterior
@@ -287,16 +309,20 @@ function startPanel() {
       $("#cOutro").value = outro;
     };
     draw();
-    cmodal.onclick = (e) => {
+    cmodal.onclick = async (e) => {
       const m = e.target.closest("[data-motivo]");
       if (m) { st.motivo = st.motivo === m.dataset.motivo ? "" : m.dataset.motivo; draw(); return; }
       if (e.target.closest("[data-cclose]")) { closeCancel(); return; }
-      if (e.target.closest("#cConfirm")) {
+      const btn = e.target.closest("#cConfirm");
+      if (btn) {
         const motivo = [st.motivo, $("#cOutro").value.trim()].filter(Boolean).join(" — ");
         if (!motivo) { toast("Escolha ou escreva um motivo"); return; }
-        const tipo = Store.cancelOrder(o.id, motivo);
-        closeCancel(); fresh.delete(o.id); render();
-        if (tipo) toast(`Pedido ${o.code} ${tipo}`);
+        btn.disabled = true;
+        try {
+          const upd = await Api.cancel(o.id, motivo);
+          replace(upd); fresh.delete(o.id); closeCancel(); render();
+          toast(`Pedido ${o.code} ${upd.cancelTipo}`);
+        } catch (ex) { toast(errMsg(ex)); btn.disabled = false; }
       }
     };
     overlay.classList.add("open"); cmodal.classList.add("open");
@@ -304,70 +330,26 @@ function startPanel() {
   overlay.addEventListener("click", closeCancel);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeCancel(); });
 
-  $("#board").addEventListener("click", (e) => {
+  $("#board").addEventListener("click", async (e) => {
     const c = e.target.closest("[data-cancel]");
     if (c) { openCancel(c.dataset.cancel); return; }
     const b = e.target.closest("[data-adv]"); if (!b) return;
-    const o = Store.getOrder(b.dataset.adv);
-    Store.updateOrder(o.id, { status: NEXT[o.status][0] });
-    fresh.delete(o.id);
-    render();
+    b.disabled = true;
+    try { const upd = await Api.advance(b.dataset.adv); replace(upd); fresh.delete(upd.id); render(); }
+    catch (ex) { toast(errMsg(ex)); b.disabled = false; }
   });
 
-  function checkNew() {
-    const orders = Store.getOrders();
-    const novos = orders.filter((o) => !known.has(o.id));
-    if (novos.length) {
-      novos.forEach((o) => { known.add(o.id); fresh.add(o.id); });
-      beep();
-      toast(`🔔 Novo pedido ${novos[0].code} de ${novos[0].cliente.nome}!`);
-      document.title = `(${novos.length}) Novo pedido — Ice Kero`;
-      setTimeout(() => (document.title = "Painel da Loja — Ice Kero"), 5000);
-    }
-    render();
-  }
-  window.addEventListener("storage", (e) => { if (e.key === Store.K.orders) checkNew(); });
-  setInterval(render, 30000);
-
-  // status da loja
-  const sel = $("#openSel");
-  const s = Store.getSettings();
-  sel.value = s.aberta === null || s.aberta === undefined ? "auto" : String(s.aberta);
-  sel.addEventListener("change", () => {
-    Store.setSettings({ aberta: sel.value === "auto" ? null : sel.value === "true" });
-    toast(sel.value === "false" ? "Loja fechada — o site não aceita pedidos" : "Status atualizado no site");
+  $("#openSel").addEventListener("change", async (e) => {
+    const v = e.target.value;
+    try {
+      await Api.setOpen(v === "auto" ? null : v === "true");
+      toast(v === "false" ? "Loja fechada — o site não aceita pedidos" : "Status atualizado no site");
+    } catch (ex) { toast(errMsg(ex)); }
   });
 
-  // pedidos de exemplo
-  const NOMES = ["Ana Paula", "Lucas", "Mariana", "Pedro Henrique", "Júlia", "Rafael", "Camila", "Gustavo"];
-  const BAIRROS = ["Floramar", "Tupi", "Jaqueline", "Heliópolis", "Guarani", "Aarão Reis"];
-  const pick = (a) => a[Math.floor(Math.random() * a.length)];
-  $("#demoBtn").addEventListener("click", () => {
-    const n = 1 + Math.floor(Math.random() * 3);
-    const itens = Array.from({ length: n }, () => {
-      const p = pick(PRODUTOS.filter((p) => p.cat !== "adicionais"));
-      const extras = p.monte ? [...ADICIONAIS_MONTE].sort(() => Math.random() - .5).slice(0, p.monte) : [];
-      return { nome: p.nome, preco: p.preco, qtd: 1 + (Math.random() < .25 ? 1 : 0), extras, obs: "" };
-    });
-    const tipo = Math.random() < .7 ? "entrega" : "retirada";
-    const sub = itens.reduce((s, i) => s + i.preco * i.qtd, 0);
-    const taxa = tipo === "entrega" ? LOJA.taxaEntrega : 0;
-    const pag = pick(["pix", "cartao", "dinheiro"]);
-    Store.addOrder({
-      id: "o" + Date.now(), code: Store.nextCode(), createdAt: Date.now(), status: "novo",
-      cliente: { nome: pick(NOMES), tel: "(31) 9 " + (8000 + Math.floor(Math.random() * 1999)) + "-" + (1000 + Math.floor(Math.random() * 8999)) },
-      tipo, endereco: tipo === "entrega" ? `Rua ${pick(["das Flores", "Itaú", "Ouro Branco", "Pedro II"])}, ${10 + Math.floor(Math.random() * 900)} — ${pick(BAIRROS)}` : null,
-      pagamento: pag, troco: pag === "dinheiro" ? "100" : null, itens, sub, taxa, desc: 0, total: sub + taxa,
-    });
-    checkNew();
-  });
-  $("#clearBtn").addEventListener("click", () => {
-    if (!confirm("Apagar todos os pedidos desta demonstração?")) return;
-    Store.setOrders([]); known = new Set(); fresh = new Set(); render();
-  });
-
-  render();
-}
+  setInterval(() => { if (started) render(); }, 30000);
+  checkAccess();
+})();
 </script>
 </body>
 </html>

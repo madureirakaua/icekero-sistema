@@ -1,6 +1,5 @@
-// Página "Meus pedidos": o cliente acompanha os pedidos ao vivo e vê o histórico.
-// Nesta demonstração a busca é só pelo celular. Em produção, confirme o número
-// com um código por SMS/WhatsApp antes de mostrar os pedidos.
+// Página "Meus pedidos": só com a conta do cliente. Mostra os pedidos ao vivo,
+// o histórico e os dados salvos (nome, celular, endereço).
 (() => {
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -9,7 +8,9 @@
   const byName = Object.fromEntries(PRODUTOS.map((p) => [p.nome, p]));
   const ativo = (o) => o.status !== "entregue" && o.status !== "cancelado";
 
-  let tel = (Store.getCliente() || {}).tel || "";
+  let orders = [];
+  let channel = null;
+  const snap = {}; // status anterior de cada pedido, para avisar mudanças
 
   $("#footPhone").innerHTML = `<a href="${LOJA.telefoneLink}">${LOJA.telefone}</a><br>${esc(LOJA.endereco)}`;
 
@@ -25,7 +26,6 @@
     return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + `, ${hora}`;
   };
   const minDesde = (t) => Math.max(0, Math.floor((Date.now() - t) / 60000));
-
   function nomeEtapa(o, s) { return o.tipo === "retirada" && s.nomeRetirada ? s.nomeRetirada : s.nome; }
 
   function headline(o) {
@@ -43,7 +43,6 @@
     const h = headline(o);
     const idx = Store.STATUS.findIndex((s) => s.id === o.status);
     const pct = (idx / (Store.STATUS.length - 1)) * 100;
-    const min = minDesde(o.createdAt);
     return `<article class="ord ord-live">
       <div class="ord-top">
         <div>
@@ -55,7 +54,7 @@
       <div class="ord-status ${h.cls}"><span>${h.emoji}</span>${esc(h.txt)}</div>
       <p class="ord-eta">${o.status === "novo" ? "Aguardando a loja confirmar…" :
         o.status === "rota" ? (o.tipo === "retirada" ? "Pode vir buscar! 😋" : "Seu pedido está a caminho.") :
-        `Previsão: ${LOJA.tempoEntrega} • feito há ${min} min`}</p>
+        `Previsão: ${LOJA.tempoEntrega} • feito há ${minDesde(o.createdAt)} min`}</p>
       <div class="steps">
         <div class="steps-bar"><i style="width:${pct}%"></i></div>
         ${Store.STATUS.map((s, i) => `<div class="stp ${i < idx ? "done" : i === idx ? "now" : ""}">
@@ -91,43 +90,86 @@
     </article>`;
   }
 
-  function render() {
-    const who = $("#who"), out = $("#ordersOut");
-    if (document.activeElement !== $("#lkTel")) $("#lkTel").value = tel;
-    if (Store.onlyDigits(tel).length < 10) {
-      who.innerHTML = "";
-      out.innerHTML = `<div class="orders-empty"><div>📱</div><h3>Digite seu celular</h3><p>Use o mesmo número que você informou ao fazer o pedido.</p></div>`;
-      return;
-    }
-    const list = Store.ordersByPhone(tel).sort((a, b) => b.createdAt - a.createdAt);
-    const pts = Store.getPoints(tel);
-    const cli = list[0]?.cliente?.nome || Store.getCliente()?.nome;
-    who.innerHTML = `<span>${cli ? `Olá, <b>${esc(cli.split(" ")[0])}</b>! ` : ""}⭐ Você tem <b>${pts} ${pts === 1 ? "ponto" : "pontos"}</b> no Clube Ice Kero.</span>
-      <button class="link-btn" id="trocar">Não é você? Trocar número</button>`;
-    if (!list.length) {
-      out.innerHTML = `<div class="orders-empty"><div>🍦</div><h3>Nenhum pedido encontrado</h3><p>Ainda não há pedidos para este número.</p><a href="index.html#cardapio" class="btn btn-pink">Fazer meu primeiro pedido</a></div>`;
-      return;
-    }
-    const ativos = list.filter(ativo), hist = list.filter((o) => !ativo(o));
-    out.innerHTML = `
-      ${ativos.length ? `<h2 class="orders-sub">Em andamento <span>${ativos.length}</span></h2><div class="ord-grid">${ativos.map(activeCard).join("")}</div>` :
-        `<div class="orders-empty slim"><p>Nenhum pedido em andamento agora.</p><a href="index.html#cardapio" class="btn btn-pink">Fazer um pedido</a></div>`}
-      ${hist.length ? `<h2 class="orders-sub">Histórico <span>${hist.length}</span></h2><div class="ord-grid past">${hist.map(pastCard).join("")}</div>` : ""}`;
+  function renderLoggedOut() {
+    $("#who").innerHTML = "";
+    $("#dadosOut").innerHTML = "";
+    $("#ordersOut").innerHTML = `<div class="orders-empty">
+      <div>🔒</div><h3>Entre na sua conta</h3>
+      <p>Seus pedidos e dados ficam protegidos na sua conta Ice Kero.</p>
+      <button class="btn btn-pink" data-entrar>Entrar ou criar conta</button></div>`;
   }
 
-  // buscar por celular
-  $("#lookup").addEventListener("submit", (e) => {
-    e.preventDefault();
-    const v = $("#lkTel").value.trim();
-    if (Store.onlyDigits(v).length < 10) { toast("Digite o celular com DDD"); return; }
-    tel = v;
+  function render() {
+    const st = Auth.state;
+    if (!st.user) return renderLoggedOut();
+    const p = st.profile || {};
+    $("#who").innerHTML = `<span>Olá, <b>${esc((p.nome || "").split(" ")[0] || st.user.email)}</b>! ⭐ Você tem <b>${p.pontos ?? 0} ${p.pontos === 1 ? "ponto" : "pontos"}</b> no Clube Ice Kero.</span>
+      <a class="link-btn" href="#dados">Meus dados</a>`;
+    const out = $("#ordersOut");
+    if (!orders.length) {
+      out.innerHTML = `<div class="orders-empty"><div>🍦</div><h3>Nenhum pedido ainda</h3><p>Quando você fizer um pedido, ele aparece aqui.</p><a href="index.html#cardapio" class="btn btn-pink">Fazer meu primeiro pedido</a></div>`;
+    } else {
+      const ativos = orders.filter(ativo), hist = orders.filter((o) => !ativo(o));
+      out.innerHTML = `
+        ${ativos.length ? `<h2 class="orders-sub">Em andamento <span>${ativos.length}</span></h2><div class="ord-grid">${ativos.map(activeCard).join("")}</div>` :
+          `<div class="orders-empty slim"><p>Nenhum pedido em andamento agora.</p><a href="index.html#cardapio" class="btn btn-pink">Fazer um pedido</a></div>`}
+        ${hist.length ? `<h2 class="orders-sub">Histórico <span>${hist.length}</span></h2><div class="ord-grid past">${hist.map(pastCard).join("")}</div>` : ""}`;
+    }
+    renderDados();
+  }
+
+  function renderDados() {
+    const st = Auth.state; if (!st.user) return;
+    const p = st.profile || {}, e = p.endereco || {};
+    // não redesenha enquanto o cliente está digitando
+    if ($("#dadosForm") && $("#dadosForm").contains(document.activeElement)) return;
+    $("#dadosOut").innerHTML = `
+      <h2 class="orders-sub" id="dados">Meus dados</h2>
+      <form class="ord dados" id="dadosForm">
+        <div class="row2">
+          <label class="field">Nome <input name="nome" value="${esc(p.nome || "")}" required minlength="2" maxlength="80"></label>
+          <label class="field">Celular / WhatsApp <input name="telefone" value="${esc(p.telefone || "")}" inputmode="tel" required></label>
+        </div>
+        <label class="field">E-mail <input value="${esc(st.user.email)}" disabled></label>
+        <p class="ord-addr">📍 Endereço salvo: ${e.rua ? esc(`${e.rua}, ${e.num}${e.comp ? " – " + e.comp : ""} — ${e.bairro}`) : "nenhum ainda (é salvo no seu próximo pedido com entrega)"}</p>
+        <div class="dados-acts">
+          <button class="btn btn-pink" type="submit">Salvar alterações</button>
+          <button class="btn btn-ghost" type="button" data-novasenha>Trocar senha</button>
+          <button class="btn btn-ghost" type="button" data-sair>Sair da conta</button>
+        </div>
+      </form>`;
+  }
+
+  async function load() {
+    if (!Auth.state.user) { orders = []; render(); return; }
+    try {
+      orders = await Api.myOrders();
+      orders.forEach((o) => (snap[o.id] = o.status));
+    } catch (e) { toast(errMsg(e)); }
     render();
-  });
+  }
+
+  function watch() {
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    const uid = Auth.state.user?.id; if (!uid) return;
+    channel = Api.watchOrders("pagina-" + uid, `user_id=eq.${uid}`, (ev, o) => {
+      if (!o) return;
+      const i = orders.findIndex((x) => x.id === o.id);
+      if (i >= 0) orders[i] = o; else orders.unshift(o);
+      if (snap[o.id] && snap[o.id] !== o.status) { const h = headline(o); toast(`${o.code}: ${h.emoji} ${h.txt}`); }
+      snap[o.id] = o.status;
+      if (o.status === "cancelado") Auth.refresh(); // pontos devolvidos
+      render();
+    });
+  }
+
   document.addEventListener("click", (e) => {
-    if (e.target.closest("#trocar")) { tel = ""; render(); $("#lkTel").focus(); return; }
+    if (e.target.closest("[data-entrar]")) { Auth.open({ reason: "Entre para ver seus pedidos." }); return; }
+    if (e.target.closest("[data-sair]")) { Api.signOut(); return; }
+    if (e.target.closest("[data-novasenha]")) { Auth.open({ mode: "newpass" }); return; }
     const again = e.target.closest("[data-again]");
     if (again) {
-      const o = Store.getOrder(again.dataset.again); if (!o) return;
+      const o = orders.find((x) => x.id === again.dataset.again); if (!o) return;
       const cart = Store.getCart();
       let n = 0;
       o.itens.forEach((i) => {
@@ -144,22 +186,24 @@
     }
   });
 
-  // atualiza ao vivo quando a loja muda o status no painel
-  window.addEventListener("storage", (e) => {
-    if (e.key !== Store.K.orders) return;
-    const antes = render.snap || {};
-    render();
-    // avisa mudanças de status dos pedidos deste cliente
-    Store.ordersByPhone(tel).forEach((o) => {
-      if (antes[o.id] && antes[o.id] !== o.status) {
-        const h = headline(o);
-        toast(`${o.code}: ${h.emoji} ${h.txt}`);
-      }
-    });
-    snap();
+  document.addEventListener("submit", async (e) => {
+    if (e.target.id !== "dadosForm") return;
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.target));
+    if (onlyDigits(v.telefone).length < 10) { toast("Digite o celular com DDD"); return; }
+    const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
+    try {
+      await Api.updateProfile({ nome: v.nome.trim(), telefone: v.telefone.trim() });
+      document.activeElement?.blur();
+      await Auth.refresh();
+      toast("Dados salvos ✅");
+    } catch (ex) { toast(errMsg(ex)); }
+    finally { btn.disabled = false; }
   });
-  function snap() { render.snap = Object.fromEntries(Store.ordersByPhone(tel).map((o) => [o.id, o.status])); }
 
-  render(); snap();
-  setInterval(render, 60000); // atualiza o "feito há X min"
+  Auth.onChange(() => { load(); watch(); });
+  Auth.ready.then(() => {
+    if (!Auth.state.user) { renderLoggedOut(); Auth.open({ reason: "Entre para ver seus pedidos." }); }
+  });
+  setInterval(() => { if (Auth.state.user) render(); }, 60000); // atualiza o "feito há X min"
 })();

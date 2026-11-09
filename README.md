@@ -7,62 +7,66 @@ Proposta de site e sistema de pedidos próprio para a **Ice Kero Açaí & Sorvet
 **Site do cliente (`index.html`)**
 - Página da marca com as cores e a identidade da Ice Kero
 - **Monte seu açaí** interativo: tamanho, adicionais e um copo que vai sendo montado na tela
-- **Cardápio digital** com mais de 80 itens reais, busca e categorias
+- **Cardápio digital** com os itens reais, busca e categorias
+- **Conta do cliente** (e-mail e senha): o cliente navega livremente, mas precisa entrar para finalizar o pedido. Nome, celular e endereço ficam salvos para os próximos pedidos
 - **Sacola e checkout**: entrega ou retirada, Pix, cartão ou dinheiro (com troco)
-- **Clube de fidelidade** já embutido (a cada R$20 = 1 ponto; 10 pontos = R$5 de desconto), identificado pelo celular
+- **Clube de fidelidade** ligado à conta (a cada R$20 = 1 ponto; 10 pontos = R$5 de desconto)
 - **Acompanhamento do pedido** em tempo real
-- Aberto/fechado automático pelo horário, endereço, mapa e redes sociais
+- Aberto/fechado automático pelo horário (ou controlado pelo painel), endereço, mapa e redes sociais
 - Pensado primeiro para o celular
 
 **Meus pedidos (`pedidos.html`)**
-- Página do cliente para acompanhar os pedidos, com link "📦 Meus pedidos" no topo do site (a bolinha mostra quantos estão em andamento)
-- Pedidos em andamento ao vivo, com barra de etapas e aviso quando o status muda
+- Só com login. Pedidos em andamento ao vivo, com barra de etapas e aviso quando o status muda
 - Histórico com entregues, recusados e cancelados (com o motivo), e botão "Pedir de novo"
+- **Meus dados**: editar nome e celular, ver o endereço salvo, trocar senha, sair
 - Saldo de pontos do Clube Ice Kero
-- O aparelho lembra o celular depois do primeiro pedido. Em produção, confirme o número por código SMS/WhatsApp antes de mostrar os pedidos.
 
 **Painel da loja (`painel.html`)**
-- Acesso protegido por senha, com sessão de 12h e botão "Sair"
-- Pedidos chegam ao vivo, com aviso sonoro
-- Quadro Kanban: Recebido → Em preparo → Entrega/Retirada → Concluído
-- Fila por ordem de chegada: o pedido mais antigo fica no topo de cada coluna
+- Login com conta de funcionário (validado no servidor)
+- Pedidos de qualquer celular chegam ao vivo, com aviso sonoro
+- Quadro Kanban: Recebido → Em preparo → Entrega/Retirada → Concluído, com o pedido mais antigo no topo
 - **Recusar** (pedido novo) ou **cancelar** (em andamento), sempre com motivo. O cliente é avisado na hora, os pontos usados voltam para ele e o pedido sai do faturamento
 - Indicadores do dia: pedidos, faturamento, ticket médio e item mais vendido
-- Botão para abrir ou fechar a loja manualmente
+- Abrir ou fechar a loja manualmente (o site atualiza na hora)
 
-## Por que um sistema próprio
+## Segurança
 
-| | iFood / marketplaces | Sistema próprio |
-|---|---|---|
-| Comissão por pedido | ~12% a 27% | **0%** |
-| Dados do cliente | ficam com a plataforma | **ficam com a loja** |
-| Fidelidade | não controla | **programa próprio** |
-| Marca | uma loja entre centenas | **vitrine exclusiva** |
+Os dados ficam no **Supabase** (projeto `icekero`, região São Paulo). O site é estático e fala direto com o banco; quem protege os dados são as regras do próprio banco (Row Level Security):
+
+- Cada cliente só consegue ver o próprio perfil e os próprios pedidos.
+- O cliente só pode alterar nome, celular e endereço. Pontos e permissão de funcionário só mudam pelo servidor.
+- **Preços, taxa de entrega, desconto e pontos são calculados no servidor** (`place_order`). Mesmo que alguém altere o preço no navegador, o banco usa o preço oficial da tabela `products`.
+- Só funcionários (`profiles.is_staff = true`) veem todos os pedidos, mudam status, cancelam e abrem/fecham a loja.
+- Senhas são guardadas pelo Supabase Auth, nunca no site.
+- A chave em `js/config.js` é a chave **pública** (anon), feita para ficar no site. Nunca coloque a chave `service_role` no código.
+
+O SQL completo está em [`supabase/schema.sql`](supabase/schema.sql) e o cardápio em [`supabase/seed.sql`](supabase/seed.sql).
+
+## Configuração no Supabase (uma vez)
+
+1. **Confirmação de e-mail.** O Supabase exige que o cliente confirme o e-mail antes de entrar, mas o envio padrão de e-mails dele só funciona para os membros da sua equipe no Supabase e tem limite por hora.
+   - Para a demonstração: *Authentication → Sign In / Providers → Email* → desligue **Confirm email**.
+   - Para produção: configure um SMTP próprio (*Authentication → Emails → SMTP Settings*, por exemplo Resend ou Brevo) e ligue a confirmação de novo.
+2. **Endereços do site.** Em *Authentication → URL Configuration*, coloque em **Site URL** o endereço publicado (ex.: `https://madureirakaua.github.io/icekero-sistema/`) e adicione em **Redirect URLs** esse endereço e `http://localhost:5173/**`. Sem isso, os links de confirmação e de "esqueci minha senha" não voltam para o site.
+3. **Conta da loja.** Crie a conta do funcionário pelo próprio site (Entrar → Criar conta) e depois marque-a como equipe no *SQL Editor*:
+   ```sql
+   update public.profiles set is_staff = true
+   where id = (select id from auth.users where email = 'email-da-loja@exemplo.com');
+   ```
 
 ## Como rodar
 
-É um site estático, sem build. Para uma demonstração local:
+É um site estático, sem build:
 
 ```bash
 npx serve .
 ```
 
-Abra o site e o `painel.html` em duas abas **do mesmo navegador**. Faça um pedido no site e ele aparece no painel na hora.
+Também funciona publicado no GitHub Pages. Como os pedidos ficam no banco, dá para pedir pelo celular e ver o pedido chegar no painel aberto no notebook.
 
-## Acesso ao painel
+## Observações
 
-- Senha da demonstração: `icekero2026`
-- Para trocar a senha, gere o SHA-256 da nova senha e substitua `SENHA_HASH` em `painel.html`:
-  ```bash
-  node -e "console.log(require('crypto').createHash('sha256').update('NOVA_SENHA').digest('hex'))"
-  ```
-- O site não tem nenhum link para o painel, e o painel tem `noindex` para não aparecer no Google.
-
-> **Importante:** nesta demonstração, a senha é conferida no navegador. Isso basta para o cliente não entrar no painel por acaso, mas não é segurança de verdade: quem souber programar consegue contornar. Em produção, o login fica no servidor (por exemplo, Supabase Auth, com um usuário para cada funcionário), e regras no banco de dados garantem que só a equipe da loja pode ver e alterar pedidos.
-
-## Observações da demonstração
-
-- Na demonstração, os pedidos ficam salvos no `localStorage` do navegador (`js/store.js`). Em produção, essa camada passa a usar um banco de dados (por exemplo, Supabase) para que o painel receba pedidos de qualquer celular.
-- As fotos vêm do CDN atual da loja (Neemo). Antes de publicar, baixe-as para `assets/`.
-- Confirmar com a loja: horário de fechamento (`fechaHora` em `js/data.js`), taxa de entrega por bairro e WhatsApp.
+- As fotos vêm do CDN atual da loja (Neemo). Antes de publicar de vez, baixe-as para `assets/`.
+- Mudou um preço? Altere em `js/data.js` (o que aparece na tela) **e** na tabela `products` do Supabase (o que é cobrado).
+- Confirmar com a loja: horário de fechamento (`fecha_hora` em `store_settings`, hoje 22h), taxa de entrega por bairro e WhatsApp.
 - O cardápio e os preços foram copiados da loja Neemo em 09/11/2026.

@@ -6,16 +6,13 @@
   const catEmoji = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.emoji]));
 
   // ---------- Loja aberta/fechada ----------
-  function isOpen() {
-    const s = Store.getSettings();
-    if (s.aberta === true || s.aberta === false) return s.aberta;
-    const h = new Date().getHours();
-    return h >= LOJA.abreHora && h < LOJA.fechaHora;
-  }
+  let settings = null; // carregado do banco
+  const isOpen = () => Api.isOpen(settings);
   function renderStatus() {
-    const open = isOpen();
     const pill = $("#statusPill");
-    pill.textContent = open ? "Aberto agora" : `Fechado • abre às ${LOJA.abreHora}h`;
+    if (!settings) { pill.textContent = "Carregando…"; pill.classList.add("closed"); return; }
+    const open = isOpen();
+    pill.textContent = open ? "Aberto agora" : `Fechado • abre às ${settings.abre_hora}h`;
     pill.classList.toggle("closed", !open);
   }
 
@@ -246,11 +243,14 @@
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAll(); });
 
   // =====================================================
-  // SACOLA
+  // SACOLA, CHECKOUT E ACOMPANHAMENTO (com conta do cliente)
   // =====================================================
   let cart = Store.getCart();
   let view = "cart"; // cart | checkout | track
-  let trackingId = null;
+  let trackingOrder = null;
+  let myActive = []; // pedidos em andamento do cliente logado
+  let sending = false;
+  const avisados = new Set();
 
   function addToCart(p, qtd, extras, obs) {
     const key = p.id + "|" + extras.join(",") + "|" + obs;
@@ -264,12 +264,7 @@
   function saveCart() { Store.setCart(cart); renderCartBadge(); if (drawer.classList.contains("open")) renderDrawer(); }
   const subtotal = () => cart.reduce((s, i) => s + i.preco * i.qtd, 0);
   const count = () => cart.reduce((s, i) => s + i.qtd, 0);
-  // bolinha com o número de pedidos em andamento deste cliente
-  function renderOrdersBadge() {
-    const cli = Store.getCliente();
-    const n = cli ? Store.ordersByPhone(cli.tel).filter((o) => o.status !== "entregue" && o.status !== "cancelado").length : 0;
-    $("#ordersBadge").textContent = n || "";
-  }
+  function renderOrdersBadge() { $("#ordersBadge").textContent = myActive.length || ""; }
   function renderCartBadge() {
     renderOrdersBadge();
     $("#cartCount").textContent = count();
@@ -279,7 +274,25 @@
     $("#floatTotal").textContent = brl(subtotal());
   }
 
-  const checkout = { tipo: "entrega", pagamento: "pix", usarPontos: false };
+  const checkout = { tipo: "entrega", pagamento: "pix", usarPontos: false, prefilledFor: null };
+  const prof = () => Auth.state.profile;
+  const logged = () => !!Auth.state.user;
+
+  // preenche nome, celular e endereço salvos na conta
+  function prefill() {
+    const p = prof();
+    if (!p || checkout.prefilledFor === p.id) return;
+    checkout.prefilledFor = p.id;
+    const e = p.endereco || {};
+    Object.assign(checkout, { nome: p.nome, tel: p.telefone, rua: e.rua || "", num: e.num || "", bairro: e.bairro || "", comp: e.comp || "" });
+  }
+
+  function askLogin() {
+    Auth.open({
+      reason: "Entre ou crie sua conta para finalizar o pedido. Seus dados ficam salvos para as próximas vezes.",
+      onSuccess: () => { view = "checkout"; renderDrawer(); if (!drawer.classList.contains("open")) open(drawer); },
+    });
+  }
 
   function renderDrawer() {
     const body = $("#drawerBody"), foot = $("#drawerFoot"), title = $("#drawerTitle");
@@ -288,9 +301,11 @@
       view = "cart";
       title.textContent = "Sua sacola";
       body.innerHTML = `<div class="cart-empty"><div>🍦</div><h4 style="font-family:var(--font-title);font-size:20px;margin:10px 0 6px;color:var(--ink)">Sacola vazia</h4>Que tal um açaí caprichado?</div>`;
-      foot.innerHTML = `<a href="#monte" class="btn btn-pink btn-block" data-close>Montar meu açaí</a>`;
+      foot.innerHTML = `<a href="#monte" class="btn btn-pink btn-block" data-close>Montar meu açaí</a>
+        ${myActive.length ? `<a href="pedidos.html" class="btn btn-ghost btn-block" style="margin-top:10px">📦 Acompanhar meu pedido</a>` : ""}`;
       return;
     }
+    if (view === "checkout" && !logged()) view = "cart";
     if (view === "cart") {
       title.textContent = "Sua sacola";
       body.innerHTML = cart.map((i, idx) => `
@@ -305,22 +320,26 @@
           <strong>${brl(i.preco * i.qtd)}</strong>
         </div>`).join("");
       const pts = Math.floor(subtotal() / LOJA.fidelidade.reaisPorPonto);
+      const aberto = isOpen();
       foot.innerHTML = `
         ${pts ? `<div class="points-note">⭐ Este pedido rende ${pts} ${pts === 1 ? "ponto" : "pontos"} no Clube Ice Kero</div>` : ""}
         <div class="totals"><div class="grand"><span>Subtotal</span><span>${brl(subtotal())}</span></div></div>
-        <button class="btn btn-pink btn-block" id="goCheckout" ${isOpen() ? "" : "disabled"}>${isOpen() ? "Continuar" : "Loja fechada no momento"}</button>`;
+        <button class="btn btn-pink btn-block" id="goCheckout" ${aberto ? "" : "disabled"}>${!aberto ? "Loja fechada no momento" : logged() ? "Continuar" : "Entrar e continuar"}</button>
+        ${aberto && !logged() ? `<p style="text-align:center;color:var(--muted);font-size:13px;margin:10px 0 0">Para pedir, entre ou crie sua conta grátis.</p>` : ""}`;
       return;
     }
-    // checkout
+    // checkout (logado)
+    prefill();
     title.textContent = "Finalizar pedido";
     const c = checkout;
     body.innerHTML = `
+      <div class="points-note" style="background:#f6f0f7;color:var(--ink)">👤 Pedido na conta <b>${esc(Auth.state.user.email)}</b></div>
       <span class="form-label">Como você quer receber?</span>
       <div class="seg" data-seg="tipo">
         <button class="${c.tipo === "entrega" ? "active" : ""}" data-v="entrega">🛵 Entrega</button>
         <button class="${c.tipo === "retirada" ? "active" : ""}" data-v="retirada">🏪 Retirada</button>
       </div>
-      <label class="field">Seu nome <input id="cNome" value="${esc(c.nome || "")}" autocomplete="name" placeholder="Como te chamamos?"></label>
+      <label class="field">Seu nome <input id="cNome" value="${esc(c.nome || "")}" autocomplete="name"></label>
       <label class="field">Celular / WhatsApp <input id="cTel" value="${esc(c.tel || "")}" inputmode="tel" autocomplete="tel" placeholder="(31) 9 9999-9999"></label>
       <div id="ptsBox"></div>
       ${c.tipo === "entrega" ? `
@@ -351,17 +370,16 @@
       troco: v("#cTroco") ?? checkout.troco,
     });
   }
-  function pointsFor(tel) { return Store.onlyDigits(tel).length >= 10 ? Store.getPoints(tel) : 0; }
+  const meusPontos = () => prof()?.pontos || 0;
   function totals() {
     const sub = subtotal();
-    const taxa = checkout.tipo === "entrega" ? LOJA.taxaEntrega : 0;
-    const desc = checkout.usarPontos && pointsFor(checkout.tel) >= LOJA.fidelidade.pontosParaResgate ? LOJA.fidelidade.desconto : 0;
+    const taxa = checkout.tipo === "entrega" ? (settings?.taxa_entrega != null ? Number(settings.taxa_entrega) : LOJA.taxaEntrega) : 0;
+    const desc = checkout.usarPontos && meusPontos() >= LOJA.fidelidade.pontosParaResgate ? LOJA.fidelidade.desconto : 0;
     return { sub, taxa, desc, total: Math.max(0, sub + taxa - desc) };
   }
   function renderPointsBox() {
     const box = $("#ptsBox"); if (!box) return;
-    const pts = pointsFor(checkout.tel);
-    if (Store.onlyDigits(checkout.tel).length < 10) { box.innerHTML = ""; return; }
+    const pts = meusPontos();
     if (pts >= LOJA.fidelidade.pontosParaResgate) {
       box.innerHTML = `<label class="points-note" style="display:flex;gap:10px;align-items:center;cursor:pointer">
         <input type="checkbox" id="cPts" ${checkout.usarPontos ? "checked" : ""}> ⭐ Você tem ${pts} pontos! Usar 10 e ganhar ${brl(LOJA.fidelidade.desconto)} de desconto</label>`;
@@ -381,45 +399,45 @@
       <div style="display:flex;gap:10px"><button class="btn btn-ghost" id="backCart">Voltar</button><button class="btn btn-pink" style="flex:1" id="placeOrder">Fazer pedido</button></div>`;
   }
 
-  function placeOrder() {
+  async function placeOrder() {
+    if (sending) return;
+    if (!logged()) { askLogin(); return; }
     readCheckoutFields();
     const c = checkout;
     const errs = [];
-    if (!c.nome) errs.push("seu nome");
-    if (Store.onlyDigits(c.tel).length < 10) errs.push("um celular válido");
+    if (!c.nome || c.nome.length < 2) errs.push("seu nome");
+    if (onlyDigits(c.tel).length < 10) errs.push("um celular válido");
     if (c.tipo === "entrega" && (!c.rua || !c.num || !c.bairro)) errs.push("o endereço completo");
     if (errs.length) { toast("Preencha " + errs.join(", ")); return; }
-    const t = totals();
-    const pontosUsados = t.desc ? LOJA.fidelidade.pontosParaResgate : 0;
-    const pontosGanhos = Math.floor(t.total / LOJA.fidelidade.reaisPorPonto);
-    const order = {
-      pontosUsados,
-      pontosGanhos,
-      id: "o" + Date.now(),
-      code: Store.nextCode(),
-      createdAt: Date.now(),
-      status: "novo",
-      cliente: { nome: c.nome, tel: c.tel },
-      tipo: c.tipo,
-      endereco: c.tipo === "entrega" ? `${c.rua}, ${c.num}${c.comp ? " – " + c.comp : ""} — ${c.bairro}` : null,
-      pagamento: c.pagamento,
-      troco: c.pagamento === "dinheiro" ? c.troco : null,
-      itens: cart.map(({ pid, nome, preco, qtd, extras, obs }) => ({ pid, nome, preco, qtd, extras, obs })),
-      ...t,
-    };
-    Store.addOrder(order);
-    // fidelidade
-    Store.setPoints(c.tel, Store.getPoints(c.tel) - pontosUsados + pontosGanhos);
-    Store.setCliente({ nome: c.nome, tel: c.tel });
-    cart = []; saveCart();
-    checkout.usarPontos = false;
-    trackingId = order.id;
-    view = "track";
-    renderDrawer();
+    sending = true;
+    const btn = $("#placeOrder"); if (btn) { btn.disabled = true; btn.textContent = "Enviando…"; }
+    try {
+      const p = prof();
+      if (p && (p.nome !== c.nome || p.telefone !== c.tel)) await Api.updateProfile({ nome: c.nome, telefone: c.tel });
+      const order = await Api.placeOrder({
+        itens: cart.map((i) => ({ pid: i.pid, qtd: i.qtd, extras: i.extras, obs: i.obs })),
+        tipo: c.tipo,
+        endereco: c.tipo === "entrega" ? { rua: c.rua, num: c.num, bairro: c.bairro, comp: c.comp } : null,
+        pagamento: c.pagamento,
+        troco: c.pagamento === "dinheiro" ? c.troco : null,
+        usarPontos: c.usarPontos,
+      });
+      cart = []; saveCart();
+      checkout.usarPontos = false; checkout.prefilledFor = null;
+      trackingOrder = order; view = "track";
+      renderDrawer();
+      Auth.refresh(); // atualiza pontos e endereço salvos
+      loadMyOrders();
+    } catch (e) {
+      toast(errMsg(e));
+      const b = $("#placeOrder"); if (b) { b.disabled = false; b.textContent = "Fazer pedido"; }
+    } finally {
+      sending = false;
+    }
   }
 
   function renderTrack() {
-    const o = Store.getOrder(trackingId);
+    const o = trackingOrder;
     if (!o) { view = "cart"; return renderDrawer(); }
     $("#drawerTitle").textContent = "Acompanhe seu pedido";
     if (o.status === "cancelado") {
@@ -428,7 +446,7 @@
         <div class="track">
           <div class="big">😕</div>
           <h3 style="font-size:24px">Pedido ${rec ? "recusado" : "cancelado"}</h3>
-          <div class="code" style="background:#fdecec;color:#b42323">Pedido ${o.code} • ${brl(o.total)}</div>
+          <div class="code" style="background:#fdecec;color:#b42323">Pedido ${esc(o.code)} • ${brl(o.total)}</div>
           ${o.cancelMotivo ? `<p style="font-weight:800;margin:0 0 10px">Motivo: ${esc(o.cancelMotivo)}</p>` : ""}
           <p style="color:var(--muted);font-size:14px;margin:0 0 6px">Nenhuma cobrança será feita${o.pontosUsados ? " e seus pontos de fidelidade foram devolvidos" : ""}.</p>
           <p style="color:var(--muted);font-size:14px;margin:0">Dúvidas? Ligue para <a href="${LOJA.telefoneLink}">${LOJA.telefone}</a>.</p>
@@ -442,12 +460,12 @@
       <div class="track">
         <div class="big">${idx >= 3 ? "🎉" : "🍧"}</div>
         <h3 style="font-size:24px">${idx >= 3 ? "Bom apetite!" : "Pedido enviado!"}</h3>
-        <div class="code">Pedido ${o.code} • ${brl(o.total)}</div>
+        <div class="code">Pedido ${esc(o.code)} • ${brl(o.total)}</div>
         <div class="timeline">
           ${Store.STATUS.map((s, i) => `<div class="tl ${i < idx || (i === idx && i === 3) ? "done" : i === idx ? "now" : ""}">
             <span class="dot">${i < idx || (i === idx && i === 3) ? "✓" : i + 1}</span>${ret && s.nomeRetirada ? s.nomeRetirada : s.nome}</div>`).join("")}
         </div>
-        <p style="color:var(--muted);font-size:14px;margin-top:20px">Esta tela atualiza sozinha quando a loja muda o status no painel.</p>
+        <p style="color:var(--muted);font-size:14px;margin-top:20px">Esta tela atualiza sozinha quando a loja muda o status do pedido.</p>
       </div>`;
     $("#drawerFoot").innerHTML = `<a href="pedidos.html" class="btn btn-pink btn-block" style="margin-bottom:10px">📦 Ver em Meus pedidos</a>
       <button class="btn btn-ghost btn-block" id="newOrder">Fazer outro pedido</button>`;
@@ -464,46 +482,56 @@
     }
     const seg = e.target.closest("[data-seg] button");
     if (seg) { readCheckoutFields(); checkout[seg.parentElement.dataset.seg] = seg.dataset.v; renderDrawer(); return; }
-    if (e.target.closest("#goCheckout")) { view = "checkout"; renderDrawer(); return; }
+    if (e.target.closest("#goCheckout")) { if (!logged()) { askLogin(); return; } view = "checkout"; renderDrawer(); return; }
     if (e.target.closest("#backCart")) { readCheckoutFields(); view = "cart"; renderDrawer(); return; }
     if (e.target.closest("#placeOrder")) { placeOrder(); return; }
     if (e.target.closest("#newOrder")) { view = "cart"; closeAll(); document.querySelector("#cardapio").scrollIntoView(); }
-  });
-  drawer.addEventListener("input", (e) => {
-    if (e.target.id === "cTel") { readCheckoutFields(); renderPointsBox(); renderCheckoutFoot(); }
   });
   drawer.addEventListener("change", (e) => {
     if (e.target.id === "cPts") { checkout.usarPontos = e.target.checked; renderCheckoutFoot(); }
   });
 
   function openCart() {
-    if (view !== "track" && Store.lastOrderId() && !cart.length) {
-      const last = Store.getOrder(Store.lastOrderId());
-      if (last && last.status !== "entregue" && last.status !== "cancelado") { trackingId = last.id; view = "track"; }
-    }
+    if (view !== "track" && !cart.length && myActive.length) { trackingOrder = myActive[0]; view = "track"; }
     renderDrawer(); open(drawer);
   }
   $("#cartBtn").addEventListener("click", openCart);
   $("#floatCart").addEventListener("click", openCart);
 
-  const avisados = new Set();
-  // atualizações vindas do painel (outra aba)
-  window.addEventListener("storage", (e) => {
-    if (e.key === Store.K.orders) {
-      renderOrdersBadge();
-      // se o último pedido do cliente foi recusado/cancelado, avisa mesmo com a sacola fechada
-      const last = Store.getOrder(Store.lastOrderId());
-      if (last && last.status === "cancelado" && !avisados.has(last.id)) {
-        avisados.add(last.id);
-        trackingId = last.id; view = "track";
-        renderDrawer();
+  // ---------- pedidos do cliente + tempo real ----------
+  let channel = null;
+  async function loadMyOrders() {
+    if (!logged()) { myActive = []; renderOrdersBadge(); return; }
+    try {
+      const all = await Api.myOrders();
+      myActive = all.filter((o) => o.status !== "entregue" && o.status !== "cancelado");
+    } catch { myActive = []; }
+    renderOrdersBadge();
+  }
+  function watchMine() {
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    const uid = Auth.state.user?.id; if (!uid) return;
+    channel = Api.watchOrders("meus-" + uid, `user_id=eq.${uid}`, (ev, o) => {
+      loadMyOrders();
+      if (!o) return;
+      if (trackingOrder && o.id === trackingOrder.id) { trackingOrder = o; if (view === "track") renderTrack(); }
+      // recusado/cancelado: avisa mesmo com a sacola fechada
+      if (o.status === "cancelado" && !avisados.has(o.id)) {
+        avisados.add(o.id);
+        trackingOrder = o; view = "track"; renderDrawer();
         if (!drawer.classList.contains("open")) open(drawer);
-        return;
       }
-      if (view === "track") renderTrack();
-    }
-    if (e.key === Store.K.settings) { renderStatus(); if (view === "cart") renderDrawer(); }
+    });
+  }
+  Auth.onChange(() => {
+    if (!logged()) { checkout.prefilledFor = null; if (view !== "cart") view = "cart"; trackingOrder = null; }
+    loadMyOrders(); watchMine();
+    if (drawer.classList.contains("open")) renderDrawer();
   });
+
+  // ---------- status da loja (vem do banco) ----------
+  Api.settings().then((s) => { settings = s; renderStatus(); if (drawer.classList.contains("open")) renderDrawer(); }).catch(() => {});
+  Api.watchSettings((s) => { settings = s; renderStatus(); if (drawer.classList.contains("open") && view === "cart") renderDrawer(); });
 
   // ---------- init ----------
   renderStatus(); setInterval(renderStatus, 60000);
@@ -512,7 +540,6 @@
   renderTabs();
   renderMenu();
   observeCats();
-  // reobserva categorias quando a busca muda
   $("#search").addEventListener("input", observeCats);
   renderCartBadge();
   // vindo do "Pedir de novo" da página Meus pedidos: abre a sacola já preenchida

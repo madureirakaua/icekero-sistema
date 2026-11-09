@@ -51,7 +51,9 @@ h1, h2, h3, h4 { font-family: var(--font-title); line-height: 1.1; margin: 0; }
 }
 .header .container { display: flex; align-items: center; gap: 24px; height: 72px; }
 .nav { display: flex; gap: 22px; margin-left: 12px; }
-.nav a { text-decoration: none; font-weight: 700; color: var(--muted); font-size: 15px; }
+.nav a { text-decoration: none; font-weight: 700; color: var(--muted); font-size: 15px; white-space: nowrap; }
+.orders-link, .status-pill { white-space: nowrap; }
+@media (max-width: 1180px) { .nav { display: none; } }
 .nav a:hover { color: var(--pink); }
 .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .status-pill {
@@ -339,6 +341,32 @@ label.field input:focus, label.field textarea:focus { border-color: var(--teal);
 .orders-link .badge:empty { display: none; }
 .nav a.current { color: var(--pink); }
 
+/* ---------- Conta ---------- */
+.acct { position: relative; }
+.acct-menu {
+  position: absolute; right: 0; top: calc(100% + 8px); width: 240px; background: #fff; border: 1px solid var(--line);
+  border-radius: 18px; box-shadow: var(--shadow); padding: 8px; z-index: 45;
+}
+.acct-menu a, .acct-menu button {
+  display: block; width: 100%; text-align: left; padding: 10px 12px; border-radius: 12px; border: 0; background: none;
+  text-decoration: none; font-weight: 700; font-size: 15px; color: var(--ink);
+}
+.acct-menu a:hover, .acct-menu button:hover { background: var(--pink-soft); }
+.acct-who { padding: 10px 12px 12px; border-bottom: 1px solid var(--line); margin-bottom: 6px; }
+.acct-who small { display: block; color: var(--muted); font-size: 13px; }
+.auth-modal { width: min(440px, 100% - 24px); }
+.auth-modal .modal-body { padding: 28px 28px 24px; position: relative; }
+.auth-x { position: absolute; top: 14px; right: 14px; }
+.auth-head { text-align: center; margin-bottom: 18px; }
+.auth-head .brand { margin-bottom: 10px; }
+.auth-head h3 { font-size: 24px; }
+.auth-head p { color: var(--muted); margin: 6px 0 0; font-size: 15px; }
+.auth-err { color: #b42323; font-weight: 800; font-size: 14px; min-height: 18px; margin: -4px 0 10px; }
+.auth-links { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 16px; font-size: 14px; color: var(--muted); }
+.auth-links button { border: 0; background: none; padding: 0; color: var(--pink-dark); font-weight: 800; text-decoration: underline; font-size: 14px; }
+.auth-note { font-size: 13px; color: var(--muted); text-align: center; margin: 14px 0 0; }
+.auth-big { font-size: 56px; text-align: center; margin: 4px 0 16px; }
+
 /* ---------- Página Meus pedidos ---------- */
 .orders-page { padding: 48px 0 0; min-height: 70vh; }
 .orders-head { max-width: 640px; margin-bottom: 26px; }
@@ -393,6 +421,8 @@ label.field input:focus, label.field textarea:focus { border-color: var(--teal);
 .orders-empty div { font-size: 52px; }
 .orders-empty h3 { font-size: 22px; color: var(--ink); margin: 8px 0 4px; }
 .orders-empty p { margin: 0 0 18px; }
+.dados { max-width: 720px; }
+.dados-acts { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px; }
 .orders-empty.slim { padding: 22px; }
 .orders-empty.slim p { margin-bottom: 12px; }
 

@@ -23,6 +23,7 @@
       <a href="pedidos.html" class="current">Meus pedidos</a>
     </nav>
     <div class="header-right">
+      <div id="account"></div>
       <a href="index.html#cardapio" class="cart-btn" style="text-decoration:none">🍧 <span class="label">Fazer pedido</span></a>
     </div>
   </div>
@@ -36,15 +37,9 @@
       <p>Veja em tempo real em que etapa está o seu pedido: recebido, em preparo, a caminho ou entregue.</p>
     </div>
 
-    <form class="lookup" id="lookup">
-      <label class="field" style="margin:0;flex:1">Seu celular / WhatsApp
-        <input id="lkTel" inputmode="tel" autocomplete="tel" placeholder="(31) 9 9999-9999">
-      </label>
-      <button class="btn btn-pink" type="submit">Buscar pedidos</button>
-    </form>
     <div class="who" id="who"></div>
-
-    <div id="ordersOut"></div>
+    <div id="ordersOut"><div class="orders-empty"><div>⏳</div><p>Carregando…</p></div></div>
+    <div id="dadosOut"></div>
   </div>
 </main>
 
@@ -63,8 +58,11 @@
 
 <div class="toast" id="toast"></div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/config.js"></script>
 <script src="js/data.js"></script>
 <script src="js/store.js"></script>
+<script src="js/auth.js"></script>
 <script src="js/pedidos.js"></script>
 </body>
 </html>
