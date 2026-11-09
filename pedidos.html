@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Meus pedidos — Ice Kero</title>
+  <meta name="description" content="Acompanhe seus pedidos da Ice Kero em tempo real.">
+  <meta name="theme-color" content="#e8197a">
+  <link rel="icon" href="https://cdn.neemo.com.br/uploads/settings_webdelivery/logo/16595/01logo.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="header">
+  <div class="container">
+    <a href="index.html" class="brand" aria-label="Ice Kero — início"><span class="ice">ICE</span><span class="kero">KERO</span></a>
+    <nav class="nav">
+      <a href="index.html#monte">Monte seu açaí</a>
+      <a href="index.html#cardapio">Cardápio</a>
+      <a href="pedidos.html" class="current">Meus pedidos</a>
+    </nav>
+    <div class="header-right">
+      <a href="index.html#cardapio" class="cart-btn" style="text-decoration:none">🍧 <span class="label">Fazer pedido</span></a>
+    </div>
+  </div>
+</header>
+
+<main class="orders-page">
+  <div class="container">
+    <div class="orders-head">
+      <span class="eyebrow">📦 Meus pedidos</span>
+      <h1>Acompanhe seu pedido</h1>
+      <p>Veja em tempo real em que etapa está o seu pedido: recebido, em preparo, a caminho ou entregue.</p>
+    </div>
+
+    <form class="lookup" id="lookup">
+      <label class="field" style="margin:0;flex:1">Seu celular / WhatsApp
+        <input id="lkTel" inputmode="tel" autocomplete="tel" placeholder="(31) 9 9999-9999">
+      </label>
+      <button class="btn btn-pink" type="submit">Buscar pedidos</button>
+    </form>
+    <div class="who" id="who"></div>
+
+    <div id="ordersOut"></div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div>
+      <a href="index.html" class="brand"><span class="ice">ICE</span><span class="kero">KERO</span></a>
+      <small>Açaí & Sorvetes — Belo Horizonte/MG</small>
+    </div>
+    <div>
+      <strong>Fale com a gente</strong>
+      <small id="footPhone"></small>
+    </div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="js/data.js"></script>
+<script src="js/store.js"></script>
+<script src="js/pedidos.js"></script>
+</body>
+</html>

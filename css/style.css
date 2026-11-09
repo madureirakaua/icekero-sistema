@@ -326,6 +326,76 @@ label.field input:focus, label.field textarea:focus { border-color: var(--teal);
 
 .float-cart { display: none; }
 
+/* ---------- Link "Meus pedidos" no topo ---------- */
+.orders-link {
+  display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 800; font-size: 15px;
+  padding: 10px 16px; border-radius: 99px; border: 2px solid var(--line); background: #fff; color: var(--ink); position: relative;
+}
+.orders-link:hover { border-color: var(--pink); color: var(--pink); }
+.orders-link .badge {
+  position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px;
+  background: var(--teal); color: #fff; font-size: 11px; display: grid; place-items: center;
+}
+.orders-link .badge:empty { display: none; }
+.nav a.current { color: var(--pink); }
+
+/* ---------- Página Meus pedidos ---------- */
+.orders-page { padding: 48px 0 0; min-height: 70vh; }
+.orders-head { max-width: 640px; margin-bottom: 26px; }
+.orders-head h1 { font-size: clamp(34px, 5vw, 48px); margin: 12px 0 8px; }
+.orders-head p { color: var(--muted); margin: 0; font-size: 17px; }
+.lookup { display: flex; gap: 12px; align-items: flex-end; max-width: 560px; background: #fff; border: 1px solid var(--line); border-radius: 22px; padding: 18px; }
+.who { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin: 14px 2px 8px; color: var(--muted); min-height: 24px; }
+.who b { color: var(--ink); }
+.link-btn { border: 0; background: none; color: var(--pink-dark); font-weight: 800; text-decoration: underline; padding: 0; font-size: 14px; }
+.orders-sub { font-size: 24px; margin: 34px 0 16px; display: flex; align-items: center; gap: 10px; }
+.orders-sub span { font-family: var(--font-body); font-size: 13px; background: var(--pink-soft); color: var(--pink-dark); padding: 2px 10px; border-radius: 99px; }
+.ord-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 18px; }
+.ord-grid.past { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.ord { background: #fff; border: 1px solid var(--line); border-radius: 24px; padding: 20px 22px; }
+.ord-live { border: 2px solid var(--pink-soft); box-shadow: var(--shadow); }
+.ord-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+.ord-code { display: block; font-family: var(--font-title); font-size: 22px; font-weight: 700; }
+.ord-when { display: block; font-size: 13px; color: var(--muted); font-weight: 700; }
+.live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; color: var(--pink); background: var(--pink-soft); padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
+.live-dot::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--pink); animation: pulse 1.4s infinite; }
+.ord-status { display: flex; align-items: center; gap: 10px; font-family: var(--font-title); font-size: 26px; font-weight: 700; margin: 16px 0 2px; }
+.ord-status span { font-size: 34px; }
+.ord-status.live { color: var(--pink); }
+.ord-eta { color: var(--muted); margin: 0 0 16px; font-weight: 700; font-size: 14px; }
+.steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 14px; }
+.steps-bar { position: absolute; left: 12.5%; right: 12.5%; top: 14px; height: 4px; background: var(--line); border-radius: 4px; }
+.steps-bar i { display: block; height: 100%; background: var(--teal); border-radius: 4px; transition: width .5s; }
+.stp { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; color: #b9aebd; }
+.stp .dot { width: 32px; height: 32px; border-radius: 50%; background: #fff; border: 2px solid currentColor; display: grid; place-items: center; font-weight: 800; font-size: 14px; }
+.stp small { font-size: 12px; font-weight: 800; line-height: 1.2; }
+.stp.done { color: var(--teal-dark); }
+.stp.done .dot { background: var(--teal); border-color: var(--teal); color: #fff; }
+.stp.now { color: var(--pink); }
+.stp.now .dot { background: var(--pink); border-color: var(--pink); color: #fff; animation: pulse 1.4s infinite; }
+.ord-more { border-top: 1px dashed var(--line); padding-top: 10px; }
+.ord-more summary { cursor: pointer; font-weight: 800; font-size: 14px; color: var(--muted); }
+.ord-items { list-style: none; padding: 0; margin: 10px 0; font-size: 15px; }
+.ord-items li { margin-bottom: 6px; }
+.ord-items small { display: block; color: var(--muted); padding-left: 24px; }
+.ord-addr { font-size: 14px; color: var(--muted); margin: 0 0 6px; }
+.ord-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 8px; color: var(--muted); font-weight: 700; font-size: 14px; }
+.ord-foot strong { font-family: var(--font-title); font-size: 20px; color: var(--ink); }
+.ord-foot .btn { padding: 9px 14px; font-size: 14px; }
+.ord-help { display: block; margin-top: 12px; font-size: 13px; color: var(--muted); font-weight: 700; }
+.ord-badge { font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 99px; white-space: nowrap; }
+.ord-badge.ok { background: var(--teal-soft); color: var(--teal-dark); }
+.ord-badge.bad { background: #fdecec; color: #b42323; }
+.ord-resume { color: var(--ink); margin: 12px 0 6px; font-size: 15px; }
+.ord-reason { color: #b42323; font-size: 13px; font-weight: 700; margin: 0 0 6px; }
+.strike { text-decoration: line-through; color: var(--muted) !important; }
+.orders-empty { text-align: center; background: #fff; border: 2px dashed var(--line); border-radius: 24px; padding: 48px 20px; margin-top: 20px; color: var(--muted); }
+.orders-empty div { font-size: 52px; }
+.orders-empty h3 { font-size: 22px; color: var(--ink); margin: 8px 0 4px; }
+.orders-empty p { margin: 0 0 18px; }
+.orders-empty.slim { padding: 22px; }
+.orders-empty.slim p { margin-bottom: 12px; }
+
 /* ---------- Responsivo ---------- */
 @media (max-width: 960px) {
   .nav { display: none; }
@@ -341,6 +411,12 @@ label.field input:focus, label.field textarea:focus { border-color: var(--teal);
   .brand .kero { font-size: 26px; }
   .status-pill { display: none; }
   .cart-btn .label { display: none; }
+  .orders-link { padding: 9px 12px; font-size: 14px; }
+  .orders-link .label { display: none; }
+  .lookup { flex-direction: column; align-items: stretch; padding: 14px; }
+  .ord-grid, .ord-grid.past { grid-template-columns: 1fr; }
+  .ord { padding: 18px 16px; }
+  .orders-page { padding-top: 28px; }
   .menu-tools { top: 62px; }
   .menu-tools .container { flex-direction: column; align-items: stretch; }
   .search { width: 100%; }

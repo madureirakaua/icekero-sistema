@@ -14,6 +14,13 @@ Proposta de site e sistema de pedidos próprio para a **Ice Kero Açaí & Sorvet
 - Aberto/fechado automático pelo horário, endereço, mapa e redes sociais
 - Pensado primeiro para o celular
 
+**Meus pedidos (`pedidos.html`)**
+- Página do cliente para acompanhar os pedidos, com link "📦 Meus pedidos" no topo do site (a bolinha mostra quantos estão em andamento)
+- Pedidos em andamento ao vivo, com barra de etapas e aviso quando o status muda
+- Histórico com entregues, recusados e cancelados (com o motivo), e botão "Pedir de novo"
+- Saldo de pontos do Clube Ice Kero
+- O aparelho lembra o celular depois do primeiro pedido. Em produção, confirme o número por código SMS/WhatsApp antes de mostrar os pedidos.
+
 **Painel da loja (`painel.html`)**
 - Acesso protegido por senha, com sessão de 12h e botão "Sair"
 - Pedidos chegam ao vivo, com aviso sonoro

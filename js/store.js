@@ -3,7 +3,7 @@
 // painel no MESMO navegador e os pedidos aparecem ao vivo. Em produção, troque
 // estas funções por chamadas a uma API/banco (ex.: Supabase, Firebase).
 const Store = (() => {
-  const K = { orders: "ik_orders", cart: "ik_cart", points: "ik_points", settings: "ik_settings", last: "ik_last_order" };
+  const K = { orders: "ik_orders", cart: "ik_cart", points: "ik_points", settings: "ik_settings", last: "ik_last_order", cliente: "ik_cliente" };
 
   const read = (k, fallback) => {
     try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
@@ -65,6 +65,14 @@ const Store = (() => {
       const all = read(K.points, {});
       all[onlyDigits(tel)] = Math.max(0, pts);
       write(K.points, all);
+    },
+    // cliente deste aparelho (lembrado após o primeiro pedido)
+    getCliente: () => read(K.cliente, null),
+    setCliente: (c) => write(K.cliente, c),
+    ordersByPhone(tel) {
+      const d = onlyDigits(tel);
+      if (d.length < 10) return [];
+      return this.getOrders().filter((o) => onlyDigits(o.cliente?.tel) === d);
     },
     // configurações da loja
     getSettings: () => read(K.settings, { aberta: null }),

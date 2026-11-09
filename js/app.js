@@ -264,7 +264,14 @@
   function saveCart() { Store.setCart(cart); renderCartBadge(); if (drawer.classList.contains("open")) renderDrawer(); }
   const subtotal = () => cart.reduce((s, i) => s + i.preco * i.qtd, 0);
   const count = () => cart.reduce((s, i) => s + i.qtd, 0);
+  // bolinha com o número de pedidos em andamento deste cliente
+  function renderOrdersBadge() {
+    const cli = Store.getCliente();
+    const n = cli ? Store.ordersByPhone(cli.tel).filter((o) => o.status !== "entregue" && o.status !== "cancelado").length : 0;
+    $("#ordersBadge").textContent = n || "";
+  }
   function renderCartBadge() {
+    renderOrdersBadge();
     $("#cartCount").textContent = count();
     const f = $("#floatCart");
     f.classList.toggle("hidden", count() === 0);
@@ -397,12 +404,13 @@
       endereco: c.tipo === "entrega" ? `${c.rua}, ${c.num}${c.comp ? " – " + c.comp : ""} — ${c.bairro}` : null,
       pagamento: c.pagamento,
       troco: c.pagamento === "dinheiro" ? c.troco : null,
-      itens: cart.map(({ nome, preco, qtd, extras, obs }) => ({ nome, preco, qtd, extras, obs })),
+      itens: cart.map(({ pid, nome, preco, qtd, extras, obs }) => ({ pid, nome, preco, qtd, extras, obs })),
       ...t,
     };
     Store.addOrder(order);
     // fidelidade
     Store.setPoints(c.tel, Store.getPoints(c.tel) - pontosUsados + pontosGanhos);
+    Store.setCliente({ nome: c.nome, tel: c.tel });
     cart = []; saveCart();
     checkout.usarPontos = false;
     trackingId = order.id;
@@ -441,7 +449,8 @@
         </div>
         <p style="color:var(--muted);font-size:14px;margin-top:20px">Esta tela atualiza sozinha quando a loja muda o status no painel.</p>
       </div>`;
-    $("#drawerFoot").innerHTML = `<button class="btn btn-ghost btn-block" id="newOrder">Fazer outro pedido</button>`;
+    $("#drawerFoot").innerHTML = `<a href="pedidos.html" class="btn btn-pink btn-block" style="margin-bottom:10px">📦 Ver em Meus pedidos</a>
+      <button class="btn btn-ghost btn-block" id="newOrder">Fazer outro pedido</button>`;
   }
 
   // eventos da gaveta
@@ -481,6 +490,7 @@
   // atualizações vindas do painel (outra aba)
   window.addEventListener("storage", (e) => {
     if (e.key === Store.K.orders) {
+      renderOrdersBadge();
       // se o último pedido do cliente foi recusado/cancelado, avisa mesmo com a sacola fechada
       const last = Store.getOrder(Store.lastOrderId());
       if (last && last.status === "cancelado" && !avisados.has(last.id)) {
@@ -505,4 +515,9 @@
   // reobserva categorias quando a busca muda
   $("#search").addEventListener("input", observeCats);
   renderCartBadge();
+  // vindo do "Pedir de novo" da página Meus pedidos: abre a sacola já preenchida
+  if (new URLSearchParams(location.search).get("sacola") === "1") {
+    history.replaceState(null, "", location.pathname);
+    openCart();
+  }
 })();
