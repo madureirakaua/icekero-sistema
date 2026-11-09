@@ -5,25 +5,70 @@
   const byId = Object.fromEntries(PRODUTOS.map((p) => [p.id, p]));
   const catEmoji = Object.fromEntries(CATEGORIAS.map((c) => [c.id, c.emoji]));
 
-  // ---------- Loja aberta/fechada ----------
-  let settings = null; // carregado do banco
-  const isOpen = () => Api.isOpen(settings);
+  // ---------- Lojas (vêm do banco) ----------
+  let stores = [];
+  let userPos = null; // {lat, lng} do cliente, quando conhecido
+  let mapStoreId = null;
+  const storeById = (id) => stores.find((s) => s.id === id);
+  const anyOpen = () => stores.some((s) => Api.isOpen(s));
+  const isOpen = anyOpen;
+  const telLink = (t) => "tel:+55" + onlyDigits(t);
+  const mapsLink = (s) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Ice Kero ${s.endereco}, ${s.bairro}, Belo Horizonte`)}`;
+  const statusTxt = (s) => Api.isOpen(s) ? "Aberta agora" : `Fechada • abre às ${Api.hora(s.abre_min)}`;
+
   function renderStatus() {
     const pill = $("#statusPill");
-    if (!settings) { pill.textContent = "Carregando…"; pill.classList.add("closed"); return; }
-    const open = isOpen();
-    pill.textContent = open ? "Aberto agora" : `Fechado • abre às ${settings.abre_hora}h`;
-    pill.classList.toggle("closed", !open);
+    if (!stores.length) { pill.textContent = "Carregando…"; pill.classList.add("closed"); return; }
+    const abertas = stores.filter((s) => Api.isOpen(s));
+    if (abertas.length) pill.textContent = abertas.length === stores.length ? "Aberto agora" : `${abertas.length} de ${stores.length} lojas abertas`;
+    else pill.textContent = `Fechado • abre às ${Api.hora(Math.min(...stores.map((s) => s.abre_min)))}`;
+    pill.classList.toggle("closed", !abertas.length);
   }
+
+  function renderStores() {
+    $("#storesTitle").textContent = `${stores.length} unidades em BH`;
+    const ranked = userPos ? Geo.rank(stores, userPos.lat, userPos.lng) : stores.map((s) => ({ store: s }));
+    const nearestOpen = ranked.find((r) => r.km != null && Api.isOpen(r.store));
+    $("#storesList").innerHTML = ranked.map((r, i) => {
+      const s = r.store, open = Api.isOpen(s);
+      return `<article class="store-card ${mapStoreId === s.id ? "active" : ""}" data-store="${s.id}">
+        <div class="store-top">
+          <h3>Ice Kero ${esc(s.nome)}</h3>
+          <span class="store-status ${open ? "" : "off"}">${statusTxt(s)}</span>
+        </div>
+        ${r.km != null ? `<div class="store-dist">${i === 0 ? "⭐ Mais perto de você • " : ""}${Geo.km(r.km)}${r.atende ? "" : " • fora da área de entrega"}</div>` : ""}
+        <p>📍 <a href="${mapsLink(s)}" target="_blank" rel="noopener">${esc(s.endereco)} — ${esc(s.bairro)}</a></p>
+        <p>🕚 Todos os dias, ${Api.hora(s.abre_min)} às ${Api.hora(s.fecha_min)}</p>
+        <p>📞 <a href="${telLink(s.telefone)}">${esc(s.telefone)}</a></p>
+      </article>`;
+    }).join("");
+    if (!mapStoreId && stores[0]) showMap((nearestOpen || ranked[0]).store.id);
+  }
+  function showMap(id) {
+    const s = storeById(id); if (!s) return;
+    mapStoreId = id;
+    $("#storeMap").src = `https://maps.google.com/maps?q=${s.lat},${s.lng}&z=16&output=embed`;
+    $$(".store-card").forEach((c) => c.classList.toggle("active", c.dataset.store === id));
+  }
+  $("#storesList").addEventListener("click", (e) => {
+    if (e.target.closest("a")) return;
+    const c = e.target.closest("[data-store]"); if (c) showMap(c.dataset.store);
+  });
+  $("#findNearest").addEventListener("click", async () => {
+    const b = $("#findNearest"); b.disabled = true; b.textContent = "Localizando…";
+    try {
+      userPos = await Geo.here();
+      const best = Geo.rank(stores, userPos.lat, userPos.lng)[0];
+      $("#nearMsg").innerHTML = `A unidade mais perto é a <b>Ice Kero ${esc(best.store.nome)}</b>, a ${Geo.km(best.km)} de você.`;
+      mapStoreId = null; renderStores(); showMap(best.store.id);
+    } catch {
+      $("#nearMsg").textContent = "Não conseguimos sua localização. Você pode digitar o CEP na hora de finalizar o pedido.";
+    } finally { b.disabled = false; b.textContent = "📍 Qual loja fica mais perto de mim?"; }
+  });
 
   // ---------- Infos fixas ----------
   function renderInfo() {
-    $("#addr").textContent = LOJA.endereco;
-    $("#addr").href = LOJA.mapa;
-    $("#hours").textContent = LOJA.horario;
-    $("#phone").textContent = LOJA.telefone;
-    $("#phone").href = LOJA.telefoneLink;
-    $("#footPhone").innerHTML = `<a href="${LOJA.telefoneLink}">${LOJA.telefone}</a><br>${esc(LOJA.endereco)}`;
+    $("#footPhone").innerHTML = stores.map((s) => `${esc(s.nome)}: <a href="${telLink(s.telefone)}">${esc(s.telefone)}</a>`).join("<br>");
     $("#lnkInsta").href = LOJA.instagram;
     $("#lnkFace").href = LOJA.facebook;
     $("#lnkIfood").href = LOJA.ifood;
@@ -274,17 +319,123 @@
     $("#floatTotal").textContent = brl(subtotal());
   }
 
-  const checkout = { tipo: "entrega", pagamento: "pix", usarPontos: false, prefilledFor: null };
+  const checkout = { tipo: "entrega", pagamento: "pix", usarPontos: false, prefilledFor: null,
+    cep: "", cidade: "Belo Horizonte", uf: "MG", lat: null, lng: null, geo: "", retiradaId: null };
   const prof = () => Auth.state.profile;
   const logged = () => !!Auth.state.user;
 
-  // preenche nome, celular e endereço salvos na conta
+  // preenche nome, celular e endereço salvos na conta (com as coordenadas)
   function prefill() {
     const p = prof();
     if (!p || checkout.prefilledFor === p.id) return;
     checkout.prefilledFor = p.id;
     const e = p.endereco || {};
-    Object.assign(checkout, { nome: p.nome, tel: p.telefone, rua: e.rua || "", num: e.num || "", bairro: e.bairro || "", comp: e.comp || "" });
+    Object.assign(checkout, { nome: p.nome, tel: p.telefone, cep: e.cep || "", rua: e.rua || "", num: e.num || "", bairro: e.bairro || "", comp: e.comp || "",
+      lat: e.lat ?? null, lng: e.lng ?? null, geo: e.lat != null ? "ok" : "" });
+    if (e.lat != null && !userPos) userPos = { lat: e.lat, lng: e.lng };
+  }
+
+  // ---------- escolha automática da loja ----------
+  function entregaInfo() {
+    if (checkout.lat == null) return null;
+    const ranked = Geo.rank(stores, checkout.lat, checkout.lng);
+    return { ranked, nearest: ranked[0], best: ranked.find((r) => r.atende && r.aberta) || null };
+  }
+  function retiradaRanked() {
+    const pos = checkout.lat != null ? { lat: checkout.lat, lng: checkout.lng } : userPos;
+    return pos ? Geo.rank(stores, pos.lat, pos.lng) : stores.map((s) => ({ store: s, km: null, aberta: Api.isOpen(s) }));
+  }
+  // loja que vai receber o pedido + taxa
+  function pedidoLoja() {
+    if (checkout.tipo === "entrega") {
+      const info = entregaInfo();
+      return info?.best ? { store: info.best.store, taxa: info.best.taxa, km: info.best.km } : null;
+    }
+    const r = retiradaRanked();
+    let pick = r.find((x) => x.store.id === checkout.retiradaId && x.aberta);
+    if (!pick) { pick = r.find((x) => x.aberta); checkout.retiradaId = pick?.store.id || null; }
+    return pick ? { store: pick.store, taxa: 0, km: pick.km } : null;
+  }
+
+  function storeBoxHtml() {
+    if (checkout.tipo === "retirada") {
+      const r = retiradaRanked();
+      pedidoLoja(); // garante uma loja aberta selecionada
+      return `<span class="form-label">Retirar em qual loja?</span>
+        <div class="pick-stores">${r.map((x) => `
+          <label class="pick-store ${x.aberta ? "" : "off"} ${checkout.retiradaId === x.store.id ? "active" : ""}">
+            <input type="radio" name="retLoja" value="${x.store.id}" ${checkout.retiradaId === x.store.id ? "checked" : ""} ${x.aberta ? "" : "disabled"}>
+            <span><b>Ice Kero ${esc(x.store.nome)}</b>${x.km != null ? ` <em>${Geo.km(x.km)}</em>` : ""}<small>${esc(x.store.endereco)} — ${esc(x.store.bairro)}</small>
+            <small>${statusTxt(x.store)}</small></span>
+          </label>`).join("")}</div>`;
+    }
+    if (checkout.geo === "buscando") return `<div class="store-box wait">🔎 Localizando seu endereço…</div>`;
+    if (checkout.geo === "erro") return `<div class="store-box bad">Não achamos esse endereço no mapa. Confira o CEP e o número, ou toque em <b>Usar minha localização</b>.</div>`;
+    const info = entregaInfo();
+    if (!info) return `<div class="store-box">📍 Digite seu CEP (ou use sua localização) para encontrarmos a loja mais perto de você.</div>`;
+    if (!info.best) {
+      const n = info.nearest;
+      const msg = n.atende
+        ? `As lojas que atendem seu endereço estão fechadas agora. A Ice Kero ${esc(n.store.nome)} abre às ${Api.hora(n.store.abre_min)}.`
+        : `Ainda não entregamos nesse endereço: a loja mais perto (Ice Kero ${esc(n.store.nome)}) fica a ${Geo.km(n.km)}.`;
+      return `<div class="store-box bad">${msg}<button class="btn btn-ghost" data-seg-go="retirada" style="margin-top:10px;width:100%">🏪 Retirar na loja</button></div>`;
+    }
+    const b = info.best;
+    const nota = info.nearest.store.id !== b.store.id
+      ? `<small>A unidade ${esc(info.nearest.store.nome)}, mais perto, ${info.nearest.aberta ? "não atende esse endereço" : "está fechada agora"}.</small>` : "";
+    return `<div class="store-box ok">
+      <div>🏪 <b>Ice Kero ${esc(b.store.nome)}</b> vai preparar seu pedido</div>
+      <small>A ${Geo.km(b.km)} de você • entrega ${brl(b.taxa)} • ${LOJA.tempoEntrega}</small>${nota}
+    </div>`;
+  }
+  function refreshStoreBox() {
+    const box = $("#storeBox"); if (box) box.innerHTML = storeBoxHtml();
+    if ($("#placeOrder")) renderCheckoutFoot();
+  }
+
+  let geoSeq = 0;
+  async function geocodeCheckout() {
+    readCheckoutFields();
+    const c = checkout;
+    if (!c.rua && onlyDigits(c.cep).length !== 8) return;
+    const seq = ++geoSeq;
+    c.geo = "buscando"; refreshStoreBox();
+    const p = await Geo.geocode({ rua: c.rua, num: c.num, bairro: c.bairro, cidade: c.cidade, uf: c.uf, cep: c.cep });
+    if (seq !== geoSeq) return; // chegou uma busca mais nova
+    if (p) { c.lat = p.lat; c.lng = p.lng; c.geo = "ok"; userPos = p; }
+    else { c.lat = c.lng = null; c.geo = "erro"; }
+    refreshStoreBox();
+  }
+  async function buscarCep() {
+    readCheckoutFields();
+    if (onlyDigits(checkout.cep).length !== 8) return;
+    checkout.geo = "buscando"; refreshStoreBox();
+    try {
+      const a = await Geo.cep(checkout.cep);
+      Object.assign(checkout, { cep: a.cep, rua: a.rua || checkout.rua, bairro: a.bairro || checkout.bairro, cidade: a.cidade, uf: a.uf });
+      const set = (id, v) => { const el = $(id); if (el && v) el.value = v; };
+      set("#cRua", checkout.rua); set("#cBairro", checkout.bairro);
+      if (!checkout.num) $("#cNum")?.focus();
+    } catch {
+      toast("CEP não encontrado");
+    }
+    geocodeCheckout();
+  }
+  async function usarLocalizacao() {
+    const b = $("#useGps"); if (b) { b.disabled = true; b.textContent = "Localizando…"; }
+    try {
+      const pos = await Geo.here();
+      Object.assign(checkout, { lat: pos.lat, lng: pos.lng, geo: "ok" }); userPos = pos;
+      try {
+        const a = await Geo.reverse(pos.lat, pos.lng);
+        Object.assign(checkout, { rua: a.rua || checkout.rua, num: a.num || checkout.num, bairro: a.bairro || checkout.bairro, cep: a.cep || checkout.cep, cidade: a.cidade || checkout.cidade });
+      } catch {}
+      renderDrawer();
+      toast("Localização encontrada! Confira o número da casa.");
+    } catch {
+      toast("Não conseguimos sua localização. Digite o CEP.");
+      if (b) { b.disabled = false; b.textContent = "📍 Usar minha localização"; }
+    }
   }
 
   function askLogin() {
@@ -343,6 +494,10 @@
       <label class="field">Celular / WhatsApp <input id="cTel" value="${esc(c.tel || "")}" inputmode="tel" autocomplete="tel" placeholder="(31) 9 9999-9999"></label>
       <div id="ptsBox"></div>
       ${c.tipo === "entrega" ? `
+        <div class="row2 cep-row">
+          <label class="field">CEP <input id="cCep" value="${esc(c.cep || "")}" inputmode="numeric" autocomplete="postal-code" placeholder="00000-000" maxlength="9"></label>
+          <button class="btn btn-ghost" type="button" id="useGps">📍 Usar minha localização</button>
+        </div>
         <div class="row2">
           <label class="field">Rua <input id="cRua" value="${esc(c.rua || "")}" autocomplete="address-line1"></label>
           <label class="field">Número <input id="cNum" value="${esc(c.num || "")}"></label>
@@ -350,7 +505,8 @@
         <div class="row2">
           <label class="field">Bairro <input id="cBairro" value="${esc(c.bairro || "")}"></label>
           <label class="field">Compl. <input id="cComp" value="${esc(c.comp || "")}"></label>
-        </div>` : `<div class="points-note" style="background:var(--pink-soft);color:var(--pink-dark)">📍 Retire em: ${esc(LOJA.endereco)}</div>`}
+        </div>` : ""}
+      <div id="storeBox">${storeBoxHtml()}</div>
       <span class="form-label">Pagamento (na entrega/retirada)</span>
       <div class="seg" data-seg="pagamento">
         <button class="${c.pagamento === "pix" ? "active" : ""}" data-v="pix">Pix</button>
@@ -365,7 +521,7 @@
   function readCheckoutFields() {
     const v = (id) => $(id)?.value.trim();
     Object.assign(checkout, {
-      nome: v("#cNome") ?? checkout.nome, tel: v("#cTel") ?? checkout.tel,
+      nome: v("#cNome") ?? checkout.nome, tel: v("#cTel") ?? checkout.tel, cep: v("#cCep") ?? checkout.cep,
       rua: v("#cRua") ?? checkout.rua, num: v("#cNum") ?? checkout.num, bairro: v("#cBairro") ?? checkout.bairro, comp: v("#cComp") ?? checkout.comp,
       troco: v("#cTroco") ?? checkout.troco,
     });
@@ -373,7 +529,8 @@
   const meusPontos = () => prof()?.pontos || 0;
   function totals() {
     const sub = subtotal();
-    const taxa = checkout.tipo === "entrega" ? (settings?.taxa_entrega != null ? Number(settings.taxa_entrega) : LOJA.taxaEntrega) : 0;
+    const loja = pedidoLoja();
+    const taxa = checkout.tipo === "entrega" ? (loja ? loja.taxa : 0) : 0;
     const desc = checkout.usarPontos && meusPontos() >= LOJA.fidelidade.pontosParaResgate ? LOJA.fidelidade.desconto : 0;
     return { sub, taxa, desc, total: Math.max(0, sub + taxa - desc) };
   }
@@ -389,14 +546,16 @@
   }
   function renderCheckoutFoot() {
     const t = totals();
+    const loja = pedidoLoja();
+    const pronto = !!loja && !(checkout.tipo === "entrega" && checkout.geo === "buscando");
     $("#drawerFoot").innerHTML = `
       <div class="totals">
         <div><span>Subtotal</span><span>${brl(t.sub)}</span></div>
-        <div><span>Taxa de entrega</span><span>${t.taxa ? brl(t.taxa) : "Grátis"}</span></div>
+        <div><span>Taxa de entrega</span><span>${checkout.tipo === "retirada" ? "Grátis" : loja ? brl(t.taxa) : "—"}</span></div>
         ${t.desc ? `<div style="color:var(--teal-dark)"><span>Desconto fidelidade</span><span>− ${brl(t.desc)}</span></div>` : ""}
         <div class="grand"><span>Total</span><span>${brl(t.total)}</span></div>
       </div>
-      <div style="display:flex;gap:10px"><button class="btn btn-ghost" id="backCart">Voltar</button><button class="btn btn-pink" style="flex:1" id="placeOrder">Fazer pedido</button></div>`;
+      <div style="display:flex;gap:10px"><button class="btn btn-ghost" id="backCart">Voltar</button><button class="btn btn-pink" style="flex:1" id="placeOrder" ${pronto ? "" : "disabled"}>${loja ? `Pedir na ${esc(loja.store.nome)}` : "Fazer pedido"}</button></div>`;
   }
 
   async function placeOrder() {
@@ -409,15 +568,19 @@
     if (onlyDigits(c.tel).length < 10) errs.push("um celular válido");
     if (c.tipo === "entrega" && (!c.rua || !c.num || !c.bairro)) errs.push("o endereço completo");
     if (errs.length) { toast("Preencha " + errs.join(", ")); return; }
+    if (c.tipo === "entrega" && c.lat == null) { toast("Digite o CEP ou use sua localização"); return; }
+    const loja = pedidoLoja();
+    if (!loja) { toast("Nenhuma loja disponível para esse pedido agora"); return; }
     sending = true;
     const btn = $("#placeOrder"); if (btn) { btn.disabled = true; btn.textContent = "Enviando…"; }
     try {
       const p = prof();
       if (p && (p.nome !== c.nome || p.telefone !== c.tel)) await Api.updateProfile({ nome: c.nome, telefone: c.tel });
       const order = await Api.placeOrder({
+        store: loja.store.id,
         itens: cart.map((i) => ({ pid: i.pid, qtd: i.qtd, extras: i.extras, obs: i.obs })),
         tipo: c.tipo,
-        endereco: c.tipo === "entrega" ? { rua: c.rua, num: c.num, bairro: c.bairro, comp: c.comp } : null,
+        endereco: c.tipo === "entrega" ? { cep: c.cep, rua: c.rua, num: c.num, bairro: c.bairro, comp: c.comp, lat: c.lat, lng: c.lng } : null,
         pagamento: c.pagamento,
         troco: c.pagamento === "dinheiro" ? c.troco : null,
         usarPontos: c.usarPontos,
@@ -449,7 +612,7 @@
           <div class="code" style="background:#fdecec;color:#b42323">Pedido ${esc(o.code)} • ${brl(o.total)}</div>
           ${o.cancelMotivo ? `<p style="font-weight:800;margin:0 0 10px">Motivo: ${esc(o.cancelMotivo)}</p>` : ""}
           <p style="color:var(--muted);font-size:14px;margin:0 0 6px">Nenhuma cobrança será feita${o.pontosUsados ? " e seus pontos de fidelidade foram devolvidos" : ""}.</p>
-          <p style="color:var(--muted);font-size:14px;margin:0">Dúvidas? Ligue para <a href="${LOJA.telefoneLink}">${LOJA.telefone}</a>.</p>
+          ${storeById(o.storeId) ? `<p style="color:var(--muted);font-size:14px;margin:0">Dúvidas? Ligue para a Ice Kero ${esc(storeById(o.storeId).nome)}: <a href="${telLink(storeById(o.storeId).telefone)}">${esc(storeById(o.storeId).telefone)}</a>.</p>` : ""}
         </div>`;
       $("#drawerFoot").innerHTML = `<button class="btn btn-pink btn-block" id="newOrder">Fazer outro pedido</button>`;
       return;
@@ -461,6 +624,7 @@
         <div class="big">${idx >= 3 ? "🎉" : "🍧"}</div>
         <h3 style="font-size:24px">${idx >= 3 ? "Bom apetite!" : "Pedido enviado!"}</h3>
         <div class="code">Pedido ${esc(o.code)} • ${brl(o.total)}</div>
+        ${storeById(o.storeId) ? `<p style="margin:-10px 0 18px;font-weight:700;color:var(--muted)">🏪 Ice Kero ${esc(storeById(o.storeId).nome)}${o.distancia != null ? ` • ${Geo.km(o.distancia)} de você` : ""}</p>` : ""}
         <div class="timeline">
           ${Store.STATUS.map((s, i) => `<div class="tl ${i < idx || (i === idx && i === 3) ? "done" : i === idx ? "now" : ""}">
             <span class="dot">${i < idx || (i === idx && i === 3) ? "✓" : i + 1}</span>${ret && s.nomeRetirada ? s.nomeRetirada : s.nome}</div>`).join("")}
@@ -485,10 +649,23 @@
     if (e.target.closest("#goCheckout")) { if (!logged()) { askLogin(); return; } view = "checkout"; renderDrawer(); return; }
     if (e.target.closest("#backCart")) { readCheckoutFields(); view = "cart"; renderDrawer(); return; }
     if (e.target.closest("#placeOrder")) { placeOrder(); return; }
+    if (e.target.closest("#useGps")) { usarLocalizacao(); return; }
+    const go = e.target.closest("[data-seg-go]");
+    if (go) { readCheckoutFields(); checkout.tipo = go.dataset.segGo; renderDrawer(); return; }
     if (e.target.closest("#newOrder")) { view = "cart"; closeAll(); document.querySelector("#cardapio").scrollIntoView(); }
   });
   drawer.addEventListener("change", (e) => {
     if (e.target.id === "cPts") { checkout.usarPontos = e.target.checked; renderCheckoutFoot(); }
+    if (e.target.name === "retLoja") { checkout.retiradaId = e.target.value; refreshStoreBox(); }
+    // mudou rua, número ou bairro: recalcula a posição e a loja
+    if (["cRua", "cNum", "cBairro"].includes(e.target.id)) geocodeCheckout();
+  });
+  drawer.addEventListener("input", (e) => {
+    if (e.target.id === "cCep") {
+      let d = onlyDigits(e.target.value).slice(0, 8);
+      e.target.value = d.length > 5 ? d.slice(0, 5) + "-" + d.slice(5) : d;
+      if (d.length === 8) buscarCep();
+    }
   });
 
   function openCart() {
@@ -529,12 +706,24 @@
     if (drawer.classList.contains("open")) renderDrawer();
   });
 
-  // ---------- status da loja (vem do banco) ----------
-  Api.settings().then((s) => { settings = s; renderStatus(); if (drawer.classList.contains("open")) renderDrawer(); }).catch(() => {});
-  Api.watchSettings((s) => { settings = s; renderStatus(); if (drawer.classList.contains("open") && view === "cart") renderDrawer(); });
+  // ---------- lojas (vêm do banco e atualizam ao vivo) ----------
+  function onStoresChanged() {
+    renderStatus(); renderStores(); renderInfo();
+    if (drawer.classList.contains("open") && view !== "track") {
+      if (view === "checkout") refreshStoreBox(); else renderDrawer();
+    }
+  }
+  Api.stores().then((s) => { stores = s; onStoresChanged(); }).catch(() => toast("Sem conexão com o servidor"));
+  Api.watchStores((row) => {
+    if (!row?.id) return;
+    const i = stores.findIndex((s) => s.id === row.id);
+    const norm = { ...row, taxa_base: Number(row.taxa_base), km_inclusos: Number(row.km_inclusos), taxa_km: Number(row.taxa_km), raio_km: Number(row.raio_km) };
+    if (i >= 0) stores[i] = norm; else stores.push(norm);
+    onStoresChanged();
+  });
 
   // ---------- init ----------
-  renderStatus(); setInterval(renderStatus, 60000);
+  renderStatus(); setInterval(() => { renderStatus(); if (stores.length) renderStores(); }, 60000);
   renderInfo();
   renderBuilder();
   renderTabs();

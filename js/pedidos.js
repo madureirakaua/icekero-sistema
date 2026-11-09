@@ -12,7 +12,14 @@
   let channel = null;
   const snap = {}; // status anterior de cada pedido, para avisar mudanças
 
-  $("#footPhone").innerHTML = `<a href="${LOJA.telefoneLink}">${LOJA.telefone}</a><br>${esc(LOJA.endereco)}`;
+  let stores = [];
+  const loja = (id) => stores.find((s) => s.id === id);
+  const telLink = (t) => "tel:+55" + onlyDigits(t);
+  Api.stores().then((s) => {
+    stores = s;
+    $("#footPhone").innerHTML = stores.map((x) => `${esc(x.nome)}: <a href="${telLink(x.telefone)}">${esc(x.telefone)}</a>`).join("<br>");
+    if (Auth.state.user) render();
+  }).catch(() => {});
 
   function toast(msg) {
     const t = $("#toast"); t.textContent = msg; t.classList.add("show");
@@ -63,13 +70,14 @@
       <details class="ord-more" open>
         <summary>Itens do pedido</summary>
         <ul class="ord-items">${itensHtml(o)}</ul>
-        ${o.endereco ? `<p class="ord-addr">📍 ${esc(o.endereco)}</p>` : `<p class="ord-addr">📍 Retirar em: ${esc(LOJA.endereco)}</p>`}
+        ${loja(o.storeId) ? `<p class="ord-addr">🏪 Ice Kero ${esc(loja(o.storeId).nome)}${o.distancia != null ? ` • a ${Geo.km(o.distancia)}` : ""}</p>` : ""}
+        ${o.endereco ? `<p class="ord-addr">📍 ${esc(o.endereco)}</p>` : loja(o.storeId) ? `<p class="ord-addr">📍 Retirar em: ${esc(loja(o.storeId).endereco)} — ${esc(loja(o.storeId).bairro)}</p>` : ""}
       </details>
       <div class="ord-foot">
         <span>${PAG[o.pagamento] || ""}${o.troco ? ` • troco p/ R$ ${esc(o.troco)}` : ""}</span>
         <strong>${brl(o.total)}</strong>
       </div>
-      <a class="ord-help" href="${LOJA.telefoneLink}">Precisa de ajuda com o pedido? Ligue ${LOJA.telefone}</a>
+      ${loja(o.storeId) ? `<a class="ord-help" href="${telLink(loja(o.storeId).telefone)}">Precisa de ajuda? Ligue para a Ice Kero ${esc(loja(o.storeId).nome)}: ${esc(loja(o.storeId).telefone)}</a>` : ""}
     </article>`;
   }
 
@@ -78,7 +86,7 @@
     const resumo = o.itens.map((i) => `${i.qtd}× ${i.nome}`).join(", ");
     return `<article class="ord ord-past">
       <div class="ord-top">
-        <div><span class="ord-code">${esc(o.code)}</span><span class="ord-when">${quando(o.createdAt)}</span></div>
+        <div><span class="ord-code">${esc(o.code)}</span><span class="ord-when">${quando(o.createdAt)}${loja(o.storeId) ? ` • ${esc(loja(o.storeId).nome)}` : ""}</span></div>
         <span class="ord-badge ${h.cls}">${h.emoji} ${esc(h.txt)}</span>
       </div>
       <p class="ord-resume">${esc(resumo)}</p>

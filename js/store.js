@@ -27,7 +27,7 @@ function normOrder(r) {
     pontosUsados: r.pontos_usados, pontosGanhos: r.pontos_ganhos,
     cancelTipo: r.cancel_tipo, cancelMotivo: r.cancel_motivo,
     createdAt: Date.parse(r.created_at), updatedAt: Date.parse(r.updated_at),
-    userId: r.user_id,
+    userId: r.user_id, storeId: r.store_id, distancia: r.distancia_km != null ? Number(r.distancia_km) : null,
     cliente: { nome: r.cliente_nome, tel: r.cliente_tel },
   };
 }
@@ -45,6 +45,9 @@ const ERROS = {
   acesso_negado: "Sua conta não tem permissão para isso.",
   status_final: "Este pedido já foi finalizado.",
   motivo_obrigatorio: "Informe o motivo.",
+  fora_da_area: "Esse endereço está fora da área de entrega da loja. Você pode retirar o pedido.",
+  endereco_sem_localizacao: "Não encontramos seu endereço no mapa. Confira o CEP ou use sua localização.",
+  loja_invalida: "Loja indisponível. Escolha outra unidade.",
   "Invalid login credentials": "E-mail ou senha incorretos.",
   "User already registered": "Este e-mail já tem conta. Entre com sua senha.",
   "Email not confirmed": "Confirme seu e-mail pelo link que enviamos antes de entrar.",
@@ -96,24 +99,31 @@ const Api = {
     if (error) throw error;
   },
 
-  // ---------- loja ----------
-  async settings() {
-    const { data, error } = await sb.from("store_settings").select("*").eq("id", 1).single();
+  // ---------- lojas ----------
+  async stores() {
+    const { data, error } = await sb.from("stores").select("*").eq("ativo", true).order("ordem");
     if (error) throw error;
-    return data;
+    return data.map((s) => ({ ...s, taxa_base: Number(s.taxa_base), km_inclusos: Number(s.km_inclusos), taxa_km: Number(s.taxa_km), raio_km: Number(s.raio_km) }));
+  },
+  // minutos desde 00:00 no horário de Brasília
+  nowMin() {
+    const p = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "America/Sao_Paulo" }).format(new Date());
+    const [h, m] = p.split(":").map(Number);
+    return (h % 24) * 60 + m;
   },
   isOpen(s) {
-    if (!s) return false;
+    if (!s || !s.ativo) return false;
     if (s.aberta === true || s.aberta === false) return s.aberta;
-    const h = Number(new Date().toLocaleString("en-US", { hour: "numeric", hour12: false, timeZone: "America/Sao_Paulo" })) % 24;
-    return h >= s.abre_hora && h < s.fecha_hora;
+    const n = this.nowMin();
+    return n >= s.abre_min && n < s.fecha_min;
   },
-  async setOpen(v) { const { error } = await sb.rpc("set_store_open", { p_aberta: v }); if (error) throw error; },
+  hora(min) { const h = Math.floor(min / 60), m = min % 60; return m ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`; },
+  async setOpen(storeId, v) { const { error } = await sb.rpc("set_store_open", { p_store: storeId, p_aberta: v }); if (error) throw error; },
 
   // ---------- pedidos ----------
-  async placeOrder({ itens, tipo, endereco, pagamento, troco, usarPontos }) {
+  async placeOrder({ store, itens, tipo, endereco, pagamento, troco, usarPontos }) {
     const { data, error } = await sb.rpc("place_order", {
-      p_itens: itens, p_tipo: tipo, p_endereco: endereco, p_pagamento: pagamento,
+      p_store: store, p_itens: itens, p_tipo: tipo, p_endereco: endereco, p_pagamento: pagamento,
       p_troco: troco || null, p_usar_pontos: !!usarPontos,
     });
     if (error) throw error;
@@ -147,9 +157,71 @@ const Api = {
     if (filter) opts.filter = filter;
     return sb.channel(name).on("postgres_changes", opts, (p) => cb(p.eventType, p.new && p.new.id ? normOrder(p.new) : null)).subscribe();
   },
-  watchSettings(cb) {
-    return sb.channel("settings").on("postgres_changes", { event: "*", schema: "public", table: "store_settings" }, (p) => cb(p.new)).subscribe();
+  watchStores(cb) {
+    return sb.channel("stores-" + Math.random().toString(36).slice(2)).on("postgres_changes", { event: "*", schema: "public", table: "stores" }, (p) => cb(p.new)).subscribe();
   },
+};
+
+// ---------- Endereço → coordenadas → loja mais próxima ----------
+// CEP: ViaCEP (gratuito). Coordenadas: Nominatim/OpenStreetMap (gratuito, uso moderado).
+// Em produção com muito movimento, troque o geocode por Google Maps ou Mapbox.
+const Geo = {
+  async cep(cep) {
+    const d = onlyDigits(cep);
+    if (d.length !== 8) throw new Error("cep_invalido");
+    const r = await fetch(`https://viacep.com.br/ws/${d}/json/`);
+    const j = await r.json();
+    if (j.erro) throw new Error("cep_nao_encontrado");
+    return { cep: j.cep, rua: j.logradouro, bairro: j.bairro, cidade: j.localidade, uf: j.uf };
+  },
+  async _search(params) {
+    const url = "https://nominatim.openstreetmap.org/search?" + new URLSearchParams({ format: "jsonv2", limit: "1", countrycodes: "br", "accept-language": "pt-BR", ...params });
+    const r = await fetch(url);
+    const j = await r.json();
+    return j[0] ? { lat: Number(j[0].lat), lng: Number(j[0].lon) } : null;
+  },
+  // tenta pela rua e número; se não achar, pelo CEP; por último, pelo bairro
+  async geocode({ rua, num, bairro, cidade = "Belo Horizonte", uf = "MG", cep }) {
+    const tries = [];
+    if (rua) tries.push({ street: `${num || ""} ${rua}`.trim(), city: cidade, state: uf, ...(cep ? { postalcode: onlyDigits(cep) } : {}) });
+    if (rua) tries.push({ street: `${num || ""} ${rua}`.trim(), city: cidade, state: uf });
+    if (cep) tries.push({ postalcode: onlyDigits(cep).replace(/(\d{5})(\d{3})/, "$1-$2"), country: "Brasil" });
+    if (bairro) tries.push({ q: `${bairro}, ${cidade}, ${uf}` });
+    for (const t of tries) {
+      try {
+        const p = await this._search(t);
+        if (p) return { ...p, precisao: t.street ? "rua" : t.q ? "bairro" : "cep" };
+      } catch {}
+    }
+    return null;
+  },
+  async reverse(lat, lng) {
+    const url = "https://nominatim.openstreetmap.org/reverse?" + new URLSearchParams({ format: "jsonv2", lat, lon: lng, "accept-language": "pt-BR", zoom: "18" });
+    const j = await (await fetch(url)).json();
+    const a = j.address || {};
+    return { rua: a.road || "", num: a.house_number || "", bairro: a.suburb || a.neighbourhood || a.city_district || "", cidade: a.city || a.town || "", uf: "MG", cep: a.postcode || "" };
+  },
+  here() {
+    return new Promise((res, rej) => {
+      if (!navigator.geolocation) return rej(new Error("sem_gps"));
+      navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lng: p.coords.longitude }), rej, { enableHighAccuracy: true, timeout: 12000 });
+    });
+  },
+  dist(lat1, lng1, lat2, lng2) {
+    const R = 6371, rad = (x) => (x * Math.PI) / 180;
+    const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
+    return R * 2 * Math.asin(Math.sqrt(a));
+  },
+  // mesma regra de taxa do servidor
+  taxa(store, km) { return store.taxa_base + Math.max(0, Math.ceil(km - store.km_inclusos)) * store.taxa_km; },
+  // lojas ordenadas pela distância, com taxa e se atendem o endereço
+  rank(stores, lat, lng) {
+    return stores.map((s) => {
+      const km = this.dist(lat, lng, s.lat, s.lng);
+      return { store: s, km, taxa: this.taxa(s, km), atende: km <= s.raio_km, aberta: Api.isOpen(s) };
+    }).sort((a, b) => a.km - b.km);
+  },
+  km(v) { return v < 1 ? `${Math.round(v * 1000)} m` : `${v.toFixed(1).replace(".", ",")} km`; },
 };
 
 // Sacola: continua no navegador

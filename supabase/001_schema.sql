@@ -1,6 +1,6 @@
 -- Banco de dados da Ice Kero (Supabase / Postgres).
 -- Já aplicado no projeto "icekero". Mantido aqui para referência e para recriar o banco.
--- Ordem: schema.sql e depois seed.sql (cardápio).
+-- Ordem: 001_schema.sql, 002_cardapio.sql e 003_multiplas_lojas.sql.
 
 -- ============ PERFIS ============
 create table public.profiles (

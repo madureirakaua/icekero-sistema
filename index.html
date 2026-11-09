@@ -21,7 +21,7 @@
       <a href="#monte">Monte seu açaí</a>
       <a href="#cardapio">Cardápio</a>
       <a href="#fidelidade">Fidelidade</a>
-      <a href="#visite">Onde estamos</a>
+      <a href="#visite">Nossas lojas</a>
     </nav>
     <div class="header-right">
       <span class="status-pill" id="statusPill">Aberto agora</span>
@@ -41,15 +41,15 @@
       <div>
         <span class="eyebrow">🍇 Açaí • Sorvetes • Milk-shakes</span>
         <h1>O sabor da <em>felicidade</em> em cada colherada!</h1>
-        <p class="lead">Açaí cremoso, taças caprichadas, paletas mexicanas e mais de 20 sabores de picolé. Monte do seu jeito e receba em casa — ou passe aqui no Floramar.</p>
+        <p class="lead">Açaí cremoso, taças caprichadas, paletas mexicanas e mais de 20 sabores de picolé. Monte do seu jeito e receba em casa da unidade mais perto de você.</p>
         <div class="hero-ctas">
           <a href="#monte" class="btn btn-pink">Montar meu açaí</a>
           <a href="#cardapio" class="btn btn-ghost">Ver cardápio</a>
         </div>
         <div class="hero-meta">
+          <div><strong>3 lojas</strong>em Belo Horizonte</div>
           <div><strong>20–45 min</strong>tempo de entrega</div>
-          <div><strong>+80</strong>itens no cardápio</div>
-          <div><strong>3,8 mil</strong>seguidores no Insta</div>
+          <div><strong>+70</strong>itens no cardápio</div>
         </div>
       </div>
       <div class="hero-art" aria-hidden="true">
@@ -65,8 +65,8 @@
   <!-- BENEFÍCIOS -->
   <div class="perks">
     <div class="container">
-      <div class="perk"><div class="ico">🛵</div><div><strong>Delivery próprio</strong><small>Entrega em 20–45 min</small></div></div>
-      <div class="perk"><div class="ico">🏪</div><div><strong>Retirada na loja</strong><small>Peça online e busque</small></div></div>
+      <div class="perk"><div class="ico">🛵</div><div><strong>Da loja mais perto</strong><small>Escolhida pelo seu endereço</small></div></div>
+      <div class="perk"><div class="ico">🏪</div><div><strong>Retirada em 3 unidades</strong><small>Floramar, Tupi e Santa Efigênia</small></div></div>
       <div class="perk"><div class="ico">⭐</div><div><strong>Programa de pontos</strong><small>10 pontos = R$5 off</small></div></div>
       <div class="perk"><div class="ico">💳</div><div><strong>Pix, cartão ou dinheiro</strong><small>Pague como preferir</small></div></div>
     </div>
@@ -141,23 +141,23 @@
   </section>
 
   <!-- VISITE -->
-  <section class="visit" id="visite">
+  <section class="stores-sec" id="visite">
     <div class="container">
-      <div class="visit-info">
-        <span class="eyebrow">Onde estamos</span>
-        <h2>Passa aqui no Floramar!</h2>
-        <div class="info-row"><div class="ico">📍</div><div><strong>Endereço</strong><a id="addr" target="_blank" rel="noopener"></a></div></div>
-        <div class="info-row"><div class="ico">🕚</div><div><strong>Horário</strong><span id="hours"></span></div></div>
-        <div class="info-row"><div class="ico">📞</div><div><strong>Telefone</strong><a id="phone"></a></div></div>
-        <div class="socials">
-          <a class="btn btn-pink" id="lnkInsta" target="_blank" rel="noopener">Instagram</a>
-          <a class="btn btn-teal" id="lnkFace" target="_blank" rel="noopener">Facebook</a>
-          <a class="btn btn-ghost" id="lnkIfood" target="_blank" rel="noopener">Também no iFood & 99</a>
-        </div>
+      <div class="section-head">
+        <span class="eyebrow">Nossas lojas</span>
+        <h2 id="storesTitle">Unidades em BH</h2>
+        <p>Peça pelo site: a unidade mais perto de você prepara e entrega.</p>
+        <button class="btn btn-ghost" id="findNearest" style="margin-top:18px">📍 Qual loja fica mais perto de mim?</button>
+        <p class="near-msg" id="nearMsg"></p>
       </div>
-      <div class="map">
-        <iframe title="Mapa da Ice Kero" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-          src="https://maps.google.com/maps?q=Av.%20Jos%C3%A9%20Lopes%20Muradas%2C%20277%2C%20Floramar%2C%20Belo%20Horizonte&z=16&output=embed"></iframe>
+      <div class="stores-layout">
+        <div class="stores-list" id="storesList"></div>
+        <div class="map"><iframe id="storeMap" title="Mapa da Ice Kero" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>
+      </div>
+      <div class="socials" style="justify-content:center;margin-top:28px">
+        <a class="btn btn-pink" id="lnkInsta" target="_blank" rel="noopener">Instagram</a>
+        <a class="btn btn-teal" id="lnkFace" target="_blank" rel="noopener">Facebook</a>
+        <a class="btn btn-ghost" id="lnkIfood" target="_blank" rel="noopener">Também no iFood & 99</a>
       </div>
     </div>
   </section>

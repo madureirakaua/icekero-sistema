@@ -244,6 +244,41 @@ section.block { padding: 88px 0; }
 .map { border-radius: 28px; overflow: hidden; min-height: 380px; border: 1px solid var(--line); background: var(--teal-soft); }
 .map iframe { width: 100%; height: 100%; border: 0; min-height: 380px; }
 
+/* ---------- Nossas lojas ---------- */
+.stores-sec { padding: 0 0 20px; }
+.near-msg { margin-top: 12px !important; font-weight: 700; color: var(--ink) !important; min-height: 24px; }
+.stores-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 24px; align-items: stretch; }
+.stores-list { display: grid; gap: 14px; align-content: start; }
+.store-card {
+  background: #fff; border: 2px solid var(--line); border-radius: 22px; padding: 18px 20px; cursor: pointer; transition: border-color .15s, box-shadow .15s;
+}
+.store-card:hover { border-color: var(--teal); }
+.store-card.active { border-color: var(--pink); box-shadow: var(--shadow); }
+.store-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+.store-top h3 { font-size: 20px; }
+.store-status { font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 99px; background: var(--teal-soft); color: var(--teal-dark); white-space: nowrap; }
+.store-status.off { background: #f3eef4; color: var(--muted); }
+.store-dist { font-size: 13px; font-weight: 800; color: var(--pink-dark); margin-bottom: 6px; }
+.store-card p { margin: 4px 0; font-size: 14px; color: var(--muted); }
+.store-card a { color: var(--ink); }
+
+/* checkout: loja escolhida */
+.cep-row { grid-template-columns: 1fr auto !important; align-items: end; }
+.cep-row .btn { padding: 11px 14px; font-size: 14px; margin-bottom: 14px; white-space: nowrap; }
+.store-box { background: #f6f0f7; border-radius: 14px; padding: 12px 14px; font-size: 14px; margin-bottom: 16px; }
+.store-box small { display: block; color: var(--muted); margin-top: 4px; }
+.store-box.ok { background: var(--teal-soft); color: var(--ink); }
+.store-box.bad { background: #fdecec; color: #8f1c1c; }
+.store-box.wait { color: var(--muted); }
+.pick-stores { display: grid; gap: 8px; margin-bottom: 16px; }
+.pick-store { display: flex; gap: 10px; align-items: flex-start; border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; cursor: pointer; }
+.pick-store input { margin-top: 4px; accent-color: var(--pink); }
+.pick-store.active { border-color: var(--pink); background: var(--pink-soft); }
+.pick-store.off { opacity: .55; cursor: not-allowed; }
+.pick-store em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--pink-dark); margin-left: 4px; }
+.pick-store small { display: block; color: var(--muted); font-size: 13px; }
+@media (max-width: 960px) { .stores-layout { grid-template-columns: 1fr; } }
+
 /* ---------- Footer ---------- */
 .footer { background: var(--ink); color: #d9cfdc; padding: 48px 0 28px; margin-top: 88px; }
 .footer .container { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }

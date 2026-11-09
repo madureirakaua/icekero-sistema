@@ -99,6 +99,7 @@
       <span class="tag-sys">Painel da loja</span>
       <span class="tag-sys" id="liveTag" title="Conexão em tempo real">● Ao vivo</span>
       <div class="right">
+        <select id="storeSel" aria-label="Loja"></select>
         <select id="openSel" aria-label="Status da loja">
           <option value="auto">⏱ Horário automático</option>
           <option value="true">🟢 Loja aberta</option>
@@ -141,6 +142,9 @@
   let fresh = new Set();
   let channel = null, settingsCh = null;
   let started = false;
+  let stores = [], myStore = null, sel = "all";
+  const lojaNome = (id) => stores.find((s) => s.id === id)?.nome || id;
+  const visivel = (o) => sel === "all" || o.storeId === sel;
 
   function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove("show"), 2600); }
   const ago = (t) => {
@@ -175,6 +179,8 @@
       return;
     }
     $("#staffName").textContent = prof.nome || user.email;
+    myStore = prof.store_id || null;
+    sel = myStore || "all";
     document.body.classList.remove("locked");
     if (!started) { started = true; start(); }
   }
@@ -208,29 +214,48 @@
       if (!o) return;
       const i = orders.findIndex((x) => x.id === o.id);
       if (ev === "INSERT" && i < 0) {
-        orders.push(o); fresh.add(o.id); beep();
-        toast(`🔔 Novo pedido ${o.code} de ${o.cliente.nome}!`);
+        orders.push(o); fresh.add(o.id);
+        if (visivel(o)) { beep(); toast(`🔔 Novo pedido ${o.code} de ${o.cliente.nome} (${lojaNome(o.storeId)})!`); }
         document.title = `🔔 Novo pedido — Ice Kero`;
         setTimeout(() => (document.title = "Painel da Loja — Ice Kero"), 6000);
       } else if (i >= 0) orders[i] = o;
       else orders.push(o);
       render();
     });
-    try {
-      const s = await Api.settings();
-      $("#openSel").value = s.aberta === null ? "auto" : String(s.aberta);
-    } catch {}
-    settingsCh = Api.watchSettings((s) => { $("#openSel").value = s.aberta === null ? "auto" : String(s.aberta); });
+    try { stores = await Api.stores(); } catch {}
+    renderStoreSel(); syncOpenSel(); render();
+    settingsCh = Api.watchStores((row) => {
+      const i = stores.findIndex((s) => s.id === row.id);
+      if (i >= 0) stores[i] = { ...stores[i], ...row };
+      syncOpenSel(); renderStoreSel();
+    });
   }
+
+  // ---------- lojas ----------
+  function renderStoreSel() {
+    const opts = (myStore ? stores.filter((s) => s.id === myStore) : stores)
+      .map((s) => `<option value="${s.id}">🏪 ${esc(s.nome)} ${Api.isOpen(s) ? "• aberta" : "• fechada"}</option>`).join("");
+    $("#storeSel").innerHTML = (myStore ? "" : `<option value="all">🏪 Todas as lojas</option>`) + opts;
+    $("#storeSel").value = sel;
+    $("#storeSel").disabled = !!myStore;
+  }
+  function syncOpenSel() {
+    const s = stores.find((x) => x.id === sel);
+    const el = $("#openSel");
+    el.disabled = !s;
+    el.title = s ? "" : "Escolha uma loja para abrir ou fechar";
+    if (s) el.value = s.aberta === null ? "auto" : String(s.aberta);
+  }
+  $("#storeSel").addEventListener("change", (e) => { sel = e.target.value; syncOpenSel(); render(); });
 
   function render() {
     const start = new Date(); start.setHours(0, 0, 0, 0);
-    const todayAll = orders.filter((o) => o.createdAt >= start.getTime());
+    const todayAll = orders.filter((o) => visivel(o) && o.createdAt >= start.getTime());
     const canc = todayAll.filter((o) => o.status === "cancelado").length;
     const today = todayAll.filter((o) => o.status !== "cancelado"); // cancelados não entram nos números
     const fat = today.reduce((s, o) => s + o.total, 0);
     $("#kPedidos").textContent = today.length;
-    $("#kAbertos").textContent = `${orders.filter((o) => ["novo", "preparo", "rota"].includes(o.status)).length} em andamento${canc ? ` • ${canc} ${canc === 1 ? "cancelado" : "cancelados"}` : ""}`;
+    $("#kAbertos").textContent = `${orders.filter((o) => visivel(o) && ["novo", "preparo", "rota"].includes(o.status)).length} em andamento${canc ? ` • ${canc} ${canc === 1 ? "cancelado" : "cancelados"}` : ""}`;
     $("#kFat").textContent = brl(fat);
     const ent = today.filter((o) => o.tipo === "entrega").length;
     $("#kEntrega").textContent = today.length ? `${ent} entregas • ${today.length - ent} retiradas` : "—";
@@ -245,9 +270,9 @@
       // Em andamento: o mais antigo no topo (fila por ordem de chegada).
       // Finalizados: o que terminou por último aparece primeiro.
       const list = s.id === "entregue"
-        ? orders.filter((o) => (o.status === "entregue" || o.status === "cancelado") && o.createdAt >= start.getTime())
+        ? orders.filter((o) => visivel(o) && (o.status === "entregue" || o.status === "cancelado") && o.createdAt >= start.getTime())
             .sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt))
-        : orders.filter((o) => o.status === s.id).sort((a, b) => a.createdAt - b.createdAt);
+        : orders.filter((o) => visivel(o) && o.status === s.id).sort((a, b) => a.createdAt - b.createdAt);
       return `<div class="col" data-s="${s.id}">
         <h3>${s.emoji} ${s.id === "rota" ? "Entrega / Retirada" : s.id === "entregue" ? "Finalizados hoje" : s.nome}<span class="n">${list.length}</span></h3>
         ${list.map(cardHtml).join("") || `<div class="col-empty">Nenhum pedido</div>`}
@@ -262,10 +287,11 @@
       <div class="ohead"><strong>${esc(o.code)}</strong><span>${ago(o.createdAt)}</span></div>
       <div class="ocli">${esc(o.cliente.nome)} <span class="ometa">• ${esc(o.cliente.tel)}</span></div>
       <div class="ometa" style="margin-top:4px">
+        ${sel === "all" ? `<span class="pill" style="background:#ece4ee;color:var(--ink)">🏪 ${esc(lojaNome(o.storeId))}</span>` : ""}
         <span class="pill ${o.tipo === "entrega" ? "pink" : ""}">${o.tipo === "entrega" ? "🛵 Entrega" : "🏪 Retirada"}</span>
         <span class="pill">${PAG[o.pagamento]}${o.troco ? " • troco p/ R$" + esc(o.troco) : ""}</span>
       </div>
-      ${o.endereco ? `<div class="ometa" style="margin-top:6px">📍 ${esc(o.endereco)}</div>` : ""}
+      ${o.endereco ? `<div class="ometa" style="margin-top:6px">📍 ${esc(o.endereco)}${o.distancia != null ? ` • ${Geo.km(o.distancia)}` : ""}</div>` : ""}
       <div class="oitems">${o.itens.map((i) => `<div><b>${i.qtd}×</b> ${esc(i.nome)}${i.extras?.length ? `<small>+ ${i.extras.map(esc).join(", ")}</small>` : ""}${i.obs ? `<small>“${esc(i.obs)}”</small>` : ""}</div>`).join("")}</div>
       ${o.status === "cancelado" ? `<div class="cancel-box">❌ ${o.cancelTipo === "recusado" ? "Recusado" : "Cancelado"}${o.cancelMotivo ? ` — ${esc(o.cancelMotivo)}` : ""}</div>` : ""}
       <div class="ofoot"><span class="total">${brl(o.total)}${o.desc ? ` <span class="pill">⭐ −${brl(o.desc)}</span>` : ""}</span>
@@ -341,9 +367,12 @@
 
   $("#openSel").addEventListener("change", async (e) => {
     const v = e.target.value;
+    if (sel === "all") return;
     try {
-      await Api.setOpen(v === "auto" ? null : v === "true");
-      toast(v === "false" ? "Loja fechada — o site não aceita pedidos" : "Status atualizado no site");
+      await Api.setOpen(sel, v === "auto" ? null : v === "true");
+      const s = stores.find((x) => x.id === sel); if (s) s.aberta = v === "auto" ? null : v === "true";
+      renderStoreSel();
+      toast(v === "false" ? `${lojaNome(sel)} fechada — os pedidos vão para outra unidade` : `Status da ${lojaNome(sel)} atualizado no site`);
     } catch (ex) { toast(errMsg(ex)); }
   });
 
